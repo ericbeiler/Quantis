@@ -8,7 +8,7 @@ namespace Visavi.Quantis
 {
     public class EquityProperties
     {
-        public string Ticker { get; set; }
+        public required string Ticker { get; set; }
         public int SimFinId { get; set; }
         public DateTime Date { get; set; }
         public float Open { get; set; }
