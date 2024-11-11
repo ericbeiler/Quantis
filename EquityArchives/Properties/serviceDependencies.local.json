@@ -3,9 +3,23 @@
     "appInsights1": {
       "type": "appInsights.sdk"
     },
-    "storage1": {
-      "type": "storage.emulator",
-      "connectionId": "AzureWebJobsStorage"
+    "secrets1": {
+      "type": "secrets.user"
+    },
+    "storage3": {
+      "serviceConnectorResourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.ServiceLinker/locations/southcentralus/connectors/QuantisStorageblob_B1DBDA913B",
+      "secretStore": "LocalSecretsFile",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Storage/storageAccounts/quantis",
+      "type": "storage.azure",
+      "connectionId": "QuantisStorage:blob"
+    },
+    "mssql1": {
+      "serviceConnectorResourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.ServiceLinker/locations/southcentralus/connectors/QuantisDb_B48CC8B162",
+      "secretStore": "LocalSecretsFile",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Sql/servers/quantis/databases/db-quantis",
+      "type": "mssql.azure",
+      "connectionId": "QuantisDb",
+      "dynamicId": null
     }
   }
 }

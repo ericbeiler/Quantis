@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "BuildHistoricAnalysisTable": {
+    "Local Service": {
       "commandName": "Project",
       "commandLineArgs": "--port 7154"
     },

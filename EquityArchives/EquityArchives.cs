@@ -11,12 +11,13 @@ using System.Text.Json.Serialization;
 
 namespace Visavi.Quantis
 {
+
     public class EquityArchives
     {
         private readonly ILogger<EquityArchives> _logger;
         private static readonly string BlobConnectionString = Environment.GetEnvironmentVariable("VisaviStorageAccount");
-        private static readonly string ContainerName = "stocks-data";
-        private static readonly string AlphaVantageApiKey = Environment.GetEnvironmentVariable("AlphaVantageApiKey");
+        //private static readonly string ContainerName = "stocks-data";
+        //private static readonly string AlphaVantageApiKey = Environment.GetEnvironmentVariable("AlphaVantageApiKey");
 
         public EquityArchives(ILogger<EquityArchives> logger)
         {
@@ -28,20 +29,24 @@ namespace Visavi.Quantis
         {
             _logger.LogInformation("Processing request to export stock data to CSV");
 
+            /*
             if (string.IsNullOrEmpty(AlphaVantageApiKey))
             {
                 _logger.LogError("Alpha Vantage API key is missing. Set AlphaVantageApiKey Environment Variable to a valid key.");
                 return new BadRequestObjectResult("Alpha Vantage API key is missing. Set AlphaVantageApiKey Environment Variable to a valid key.");
             }
+            */
+
 
             // Define stocks of interest
             var tickers = new[] { "AAPL", "MSFT", "GOOGL" }; // Add desired tickers
 
             // Fetch stock data for each ticker
+            /*
             var stocks = new List<StockData>();
             foreach (var ticker in tickers)
             {
-                var stockData = await FetchStockDataAsync(ticker);
+                //var stockData = await FetchStockDataAsync(ticker);
                 if (stockData != null)
                 {
                     stocks.Add(stockData);
@@ -67,10 +72,14 @@ namespace Visavi.Quantis
                 stream.Position = 0;
                 await blobClient.UploadAsync(stream, overwrite: true);
             }
+            */
 
-            return new OkObjectResult(stocks);
+            // return new OkObjectResult(stocks);
+            return new OkObjectResult(null);
         }
 
+        /*
+         * 
         private async Task<StockData> FetchStockDataAsync(string ticker)
         {
             // Alpha Vantage API endpoints
@@ -119,6 +128,7 @@ namespace Visavi.Quantis
                 FairValue = null // Alpha Vantage does not provide fair value directly
             };
         }
+        */
 
         public record StockData
         {

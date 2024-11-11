@@ -4,9 +4,17 @@
       "type": "appInsights",
       "connectionId": "APPLICATIONINSIGHTS_CONNECTION_STRING"
     },
-    "storage1": {
+    "secrets1": {
+      "type": "secrets"
+    },
+    "storage3": {
       "type": "storage",
-      "connectionId": "AzureWebJobsStorage"
+      "connectionId": "QuantisStorage:blob"
+    },
+    "mssql1": {
+      "type": "mssql",
+      "connectionId": "QuantisDb",
+      "dynamicId": null
     }
   }
 }
