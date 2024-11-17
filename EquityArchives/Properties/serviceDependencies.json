@@ -1,16 +1,26 @@
 {
   "dependencies": {
-    "appInsights1": {
-      "type": "appInsights",
-      "connectionId": "APPLICATIONINSIGHTS_CONNECTION_STRING"
-    },
     "secrets1": {
       "type": "secrets",
       "connectionId": null
     },
+    "appInsights1": {
+      "type": "appInsights",
+      "connectionId": "APPLICATIONINSIGHTS_CONNECTION_STRING"
+    },
+    "storage2": {
+      "type": "storage",
+      "connectionId": "AzureWebJobsStorage"
+    },
+    "mssql1": {
+      "type": "mssql",
+      "connectionId": "QuantisDbConnection",
+      "dynamicId": null
+    },
     "storage1": {
       "type": "storage",
-      "connectionId": "QuantisStorageConnection"
+      "connectionId": "QuantisStorageConnection",
+      "dynamicId": null
     }
   }
 }

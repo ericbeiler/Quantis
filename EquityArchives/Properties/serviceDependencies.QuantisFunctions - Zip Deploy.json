@@ -1,0 +1,30 @@
+{
+  "dependencies": {
+    "appInsights1": {
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/microsoft.insights/components/quantis-functions",
+      "type": "appInsights.azure",
+      "connectionId": "APPLICATIONINSIGHTS_CONNECTION_STRING"
+    },
+    "storage2": {
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Storage/storageAccounts/quantis",
+      "type": "storage.azure",
+      "connectionId": "AzureWebJobsStorage"
+    },
+    "mssql1": {
+      "serviceConnectorResourceId": "/subscriptions/[parameters('subscriptionId')]/resourcegroups/[parameters('resourceGroupName')]/providers/Microsoft.Web/sites/QuantisFunctions/providers/Microsoft.ServiceLinker/linkers/QuantisDbConnection_924C925545",
+      "secretStore": "AzureAppSettings",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Sql/servers/quantis/databases/db-quantis",
+      "type": "mssql.azure",
+      "connectionId": "QuantisDbConnection",
+      "dynamicId": null
+    },
+    "storage1": {
+      "serviceConnectorResourceId": "/subscriptions/[parameters('subscriptionId')]/resourcegroups/[parameters('resourceGroupName')]/providers/Microsoft.Web/sites/QuantisFunctions/providers/Microsoft.ServiceLinker/linkers/QuantisStorageConnection_98832DDA3B, /subscriptions/beefb59f-006c-454a-af33-7bff9f9b47d4/resourcegroups/rg-quantis/providers/Microsoft.Web/sites/QuantisFunctions/providers/Microsoft.ServiceLinker/linkers/QuantisStorageConnection_02389DCB49",
+      "secretStore": "AzureAppSettings",
+      "resourceId": "/subscriptions/[parameters('subscriptionId')]/resourceGroups/[parameters('resourceGroupName')]/providers/Microsoft.Storage/storageAccounts/quantis",
+      "type": "storage.azure",
+      "connectionId": "QuantisStorageConnection",
+      "dynamicId": null
+    }
+  }
+}

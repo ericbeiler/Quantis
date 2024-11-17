@@ -61,13 +61,20 @@ namespace EquityArchives
 
             if (!string.IsNullOrEmpty(_storageConnectionString))
             {
-                output += "\nStorage Statistics\n";
-                var blobServiceClient = new BlobServiceClient(_storageConnectionString);
-                var blobContainers = blobServiceClient.GetBlobContainersAsync();
-
-                await foreach (var blobContainer in blobContainers)
+                try
                 {
-                    output += $"  Container Name: {blobContainer.Name}\n";
+                    output += "\nStorage Statistics\n";
+                    var blobServiceClient = new BlobServiceClient(_storageConnectionString);
+                    var blobContainers = blobServiceClient.GetBlobContainersAsync();
+
+                    await foreach (var blobContainer in blobContainers)
+                    {
+                        output += $"  Container Name: {blobContainer.Name}\n";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    output += $"Error: Unable to enumerate containers: {ex.Message}";
                 }
             }
             else
