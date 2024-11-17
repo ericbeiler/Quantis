@@ -50,7 +50,6 @@ namespace Visavi.Quantis
             _logger?.LogInformation($"C# Blob trigger function Processed blob\n Name: {triggerName}");
         }
 
-
         private async Task BulkInsertEquityProperties(List<EquityProperties> records)
         {
             _logger?.LogInformation($"Creating temp table of {records?.Count() ?? 0}, starting with {records?.FirstOrDefault()}.");
@@ -129,14 +128,46 @@ namespace Visavi.Quantis
             command.CommandType = CommandType.Text;
             command.Transaction = transaction;
             command.CommandText = @"
-                INSERT INTO dbo.EquityHistory SELECT [SimFinId], [Ticker], [Date], [Open], [High], [Low], [Close], [AdjClose], [Volume], [Dividend], [SharesOutstanding], [MarketCap], [PriceToEarningsQuarterly], [PriceToEarningsTTM], [PriceToSalesQuarterly], [PriceToSalesTTM], [PriceToBookValue], [PriceToFreeCashFlowQuarterly], [PriceToFreeCashFlowTTM], [EnterpriseValue], [EnterpriseValueToEBITDA], [EnterpriseValueToSales], [EnterpriseValueToFreeCashFlow], [BookToMarketValue], [OperatingIncomeToEnterpriseValue], [AltmanZScore], [DividendYield], [PriceToEarningsAdjusted]
-                FROM @newEquities";
+                MERGE INTO dbo.EquityHistory AS target
+                USING @newEquities AS source
+                ON target.SimFinId = source.SimFinId AND target.Date = source.Date
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        target.[Ticker] = source.[Ticker],
+                        target.[Open] = source.[Open],
+                        target.[High] = source.[High],
+                        target.[Low] = source.[Low],
+                        target.[Close] = source.[Close],
+                        target.[AdjClose] = source.[AdjClose],
+                        target.[Volume] = source.[Volume],
+                        target.[Dividend] = source.[Dividend],
+                        target.[SharesOutstanding] = source.[SharesOutstanding],
+                        target.[MarketCap] = source.[MarketCap],
+                        target.[PriceToEarningsQuarterly] = source.[PriceToEarningsQuarterly],
+                        target.[PriceToEarningsTTM] = source.[PriceToEarningsTTM],
+                        target.[PriceToSalesQuarterly] = source.[PriceToSalesQuarterly],
+                        target.[PriceToSalesTTM] = source.[PriceToSalesTTM],
+                        target.[PriceToBookValue] = source.[PriceToBookValue],
+                        target.[PriceToFreeCashFlowQuarterly] = source.[PriceToFreeCashFlowQuarterly],
+                        target.[PriceToFreeCashFlowTTM] = source.[PriceToFreeCashFlowTTM],
+                        target.[EnterpriseValue] = source.[EnterpriseValue],
+                        target.[EnterpriseValueToEBITDA] = source.[EnterpriseValueToEBITDA],
+                        target.[EnterpriseValueToSales] = source.[EnterpriseValueToSales],
+                        target.[EnterpriseValueToFreeCashFlow] = source.[EnterpriseValueToFreeCashFlow],
+                        target.[BookToMarketValue] = source.[BookToMarketValue],
+                        target.[OperatingIncomeToEnterpriseValue] = source.[OperatingIncomeToEnterpriseValue],
+                        target.[AltmanZScore] = source.[AltmanZScore],
+                        target.[DividendYield] = source.[DividendYield],
+                        target.[PriceToEarningsAdjusted] = source.[PriceToEarningsAdjusted]                
+                    WHEN NOT MATCHED BY TARGET THEN
+                        INSERT ([SimFinId], [Ticker], [Date], [Open], [High], [Low], [Close], [AdjClose], [Volume], [Dividend], [SharesOutstanding], [MarketCap], [PriceToEarningsQuarterly], [PriceToEarningsTTM], [PriceToSalesQuarterly], [PriceToSalesTTM], [PriceToBookValue], [PriceToFreeCashFlowQuarterly], [PriceToFreeCashFlowTTM], [EnterpriseValue], [EnterpriseValueToEBITDA], [EnterpriseValueToSales], [EnterpriseValueToFreeCashFlow], [BookToMarketValue], [OperatingIncomeToEnterpriseValue], [AltmanZScore], [DividendYield], [PriceToEarningsAdjusted])
+                        VALUES (source.[SimFinId], source.[Ticker], source.[Date], source.[Open], source.[High], source.[Low], source.[Close], source.[AdjClose], source.[Volume], source.[Dividend], source.[SharesOutstanding], source.[MarketCap], source.[PriceToEarningsQuarterly], source.[PriceToEarningsTTM], source.[PriceToSalesQuarterly], source.[PriceToSalesTTM], source.[PriceToBookValue], source.[PriceToFreeCashFlowQuarterly], source.[PriceToFreeCashFlowTTM], source.[EnterpriseValue], source.[EnterpriseValueToEBITDA], source.[EnterpriseValueToSales], source.[EnterpriseValueToFreeCashFlow], source.[BookToMarketValue], source.[OperatingIncomeToEnterpriseValue], source.[AltmanZScore], source.[DividendYield], source.[PriceToEarningsAdjusted]);";
 
             var parameter = command.Parameters.AddWithValue("@newEquities", newRows);
             parameter.SqlDbType = SqlDbType.Structured;
             parameter.TypeName = "dbo.NewEquitiesDataType";
 
-            _logger?.LogInformation($"Initiating bulk insert of {records?.Count() ?? 0}, transaction {transaction.GetHashCode()}, starting with {records?.FirstOrDefault()}.");
+            _logger?.LogInformation($"Initiating bulk merge of {records?.Count() ?? 0}, transaction {transaction.GetHashCode()}, starting with {records?.FirstOrDefault()}.");
             await command.ExecuteNonQueryAsync();
             await transaction.CommitAsync();
             _logger?.LogInformation($"Committed transaction {transaction.GetHashCode()}.");
