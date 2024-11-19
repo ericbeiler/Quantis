@@ -2,7 +2,7 @@
   "profiles": {
     "Local Service": {
       "commandName": "Project",
-      "commandLineArgs": "--port 7154"
+      "commandLineArgs": "--port 7154 --verbose"
     },
     "Container (Dockerfile)": {
       "commandName": "Docker",

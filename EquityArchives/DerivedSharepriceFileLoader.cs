@@ -1,18 +1,18 @@
-using System.Data;
-using System.Globalization;
-using CsvHelper;
-using Microsoft.Azure.Functions.Worker;
+﻿using CsvHelper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using System.Data;
+using System.Globalization;
 
 namespace Visavi.Quantis
 {
-    public class ProcessEquityFile
+    internal class DerivedSharepriceFileLoader
     {
-        private readonly ILogger<ProcessEquityFile>? _logger;
+        private const int batchSize = 5000;
+        private readonly ILogger? _logger;
         private readonly string? _dbConnectionString;
 
-        public ProcessEquityFile(ILogger<ProcessEquityFile> logger)
+        public DerivedSharepriceFileLoader(ILogger? logger = null)
         {
             _logger = logger;
 
@@ -23,35 +23,43 @@ namespace Visavi.Quantis
             }
         }
 
-        [Function(nameof(ProcessEquityFile))]
-        public async Task Run([BlobTrigger("equity-archives/{name}", Connection = "QuantisStorageConnection")] Stream stream, string triggerName)
+        internal async Task<int> LoadRecords(Stream derivedSharePricesDailyStream)
         {
-            using var blobStreamReader = new StreamReader(stream);
-            using var csv = new CsvReader(blobStreamReader, new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
+            var totalRecordCount = 0;
+            try
             {
-                Delimiter = ";"
-            });
-
-            csv.Context.RegisterClassMap<EquityPropertiesMap>();
-
-            var records = new List<EquityProperties>();
-
-            await foreach (var record in csv.GetRecordsAsync<EquityProperties>())
-            {
-                records.Add(record);
-                if (records.Count() > 1000)
+                using var blobStreamReader = new StreamReader(derivedSharePricesDailyStream);
+                using var csv = new CsvReader(blobStreamReader, new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
                 {
-                    await BulkInsertEquityProperties(records);
-                    records = new List<EquityProperties>();
-                }
-            }
-            await BulkInsertEquityProperties(records);
+                    Delimiter = ";"
+                });
 
-            _logger?.LogInformation($"C# Blob trigger function Processed blob\n Name: {triggerName}");
+                csv.Context.RegisterClassMap<EquityPropertiesMap>();
+                var records = new List<EquityProperties>();
+
+                foreach (var record in csv.GetRecords<EquityProperties>())
+                {
+                    records.Add(record);
+                    if (records.Count() > batchSize)
+                    {
+                        await BulkInsertEquityProperties(records);
+                        totalRecordCount += records.Count();
+                        records = new List<EquityProperties>();
+                    }
+                }
+                return totalRecordCount;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Error loading equity records after completing {totalRecordCount}: {ex}");
+                throw;
+            }
         }
+
 
         private async Task BulkInsertEquityProperties(List<EquityProperties> records)
         {
+            var start = DateTime.Now;
             _logger?.LogInformation($"Creating temp table of {records?.Count() ?? 0}, starting with {records?.FirstOrDefault()}.");
             DataTable newRows = new DataTable("dbo.NewEquitiesDataType");
             newRows.Columns.Add("SimFinId", typeof(int));
@@ -87,7 +95,7 @@ namespace Visavi.Quantis
             {
                 DataRow dataRow = newRows.NewRow();
                 dataRow["SimFinId"] = record.SimFinId;
-                dataRow["Ticker"] = record.Ticker;
+                dataRow["Ticker"] = record.Ticker.Length < 8 ? record.Ticker : record.Ticker.Substring(0, 8);
                 dataRow["Date"] = record.Date;
                 dataRow["Open"] = (object)record.Open ?? DBNull.Value;
                 dataRow["High"] = (object)record.High ?? DBNull.Value;
@@ -168,9 +176,17 @@ namespace Visavi.Quantis
             parameter.TypeName = "dbo.NewEquitiesDataType";
 
             _logger?.LogInformation($"Initiating bulk merge of {records?.Count() ?? 0}, transaction {transaction.GetHashCode()}, starting with {records?.FirstOrDefault()}.");
-            await command.ExecuteNonQueryAsync();
-            await transaction.CommitAsync();
-            _logger?.LogInformation($"Committed transaction {transaction.GetHashCode()}.");
+            try
+            {
+                await command.ExecuteNonQueryAsync();
+                await transaction.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Error during bulk merge:, transaction {transaction.GetHashCode()}:\n{ex}");
+                throw;
+            }
+            _logger?.LogInformation($"Completeed transaction {transaction.GetHashCode()} in {(int)Math.Ceiling((DateTime.Now - start).TotalMilliseconds)} ms.");
         }
     }
 }

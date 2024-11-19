@@ -1,4 +1,5 @@
 using Azure.Storage.Blobs;
+using Azure.Storage.Queues;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -6,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Collections;
+using Visavi.Quantis;
 
 namespace EquityArchives
 {
@@ -63,7 +65,7 @@ namespace EquityArchives
             {
                 try
                 {
-                    output += "\nStorage Statistics\n";
+                    output += "\nStorage Container Statistics\n";
                     var blobServiceClient = new BlobServiceClient(_storageConnectionString);
                     var blobContainers = blobServiceClient.GetBlobContainersAsync();
 
@@ -71,10 +73,27 @@ namespace EquityArchives
                     {
                         output += $"  Container Name: {blobContainer.Name}\n";
                     }
+                    output += "\n";
                 }
                 catch (Exception ex)
                 {
-                    output += $"Error: Unable to enumerate containers: {ex.Message}";
+                    output += $"Error: Unable to enumerate containers: {ex.Message}\n";
+                }
+
+                try
+                {
+                    output += "\nQueue Statistics\n";
+                    var queueServiceClient = new QueueServiceClient(_storageConnectionString);
+                    var queueClient = queueServiceClient.GetQueueClient(EquityQueueService.EquityQueueName);
+                    output += $"URI: {queueServiceClient.Uri}\n";
+                    foreach (var queue in queueServiceClient.GetQueues())
+                    {
+                        output += $"  {queue.Name}\n";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    output += $"Error: Unable to enumerate queues: {ex.Message}\n";
                 }
             }
             else
