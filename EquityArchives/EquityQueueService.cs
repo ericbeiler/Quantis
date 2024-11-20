@@ -5,7 +5,6 @@ using Azure.Storage.Queues.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.SqlServer.Server;
 
 namespace Visavi.Quantis
 {
@@ -13,7 +12,7 @@ namespace Visavi.Quantis
     {
         internal const string EquityQueueName = "quantis-equities";
         internal const string ReloadMessage = "Reload";
-        internal const int maxRows = 500000;
+        internal const int maxRows = 200000;
 
         private readonly ILogger<EquityQueueService>? _logger;
         private const string usDerivedSharepricesDailySource = "us-derived-shareprices-daily.csv"; // Replace with your actual file name
@@ -41,20 +40,21 @@ namespace Visavi.Quantis
         public async Task Run([QueueTrigger(EquityQueueName, Connection = "QuantisStorageConnection")] QueueMessage message)
         {
             var startTime = DateTime.Now;
-            _logger?.LogInformation($"Processing Queue Message: {message.MessageId}, {message.Body}");
+            var messageBody = message.Body.ToString();
+            _logger?.LogInformation($"Processing Queue Message: {message.MessageId}, {messageBody}");
             bool alreadyLoading = true;
             lock (_workingMessageList)
             {
-                if (!_workingMessageList.Contains(message.MessageId))
+                if (!_workingMessageList.Contains(messageBody))
                 {
-                    _workingMessageList.Add(message.MessageId);
+                    _workingMessageList.Add(messageBody);
                     alreadyLoading = false;
                 }
             }
 
             if (alreadyLoading)
             {
-                _logger?.LogWarning($"Skipping redundant processing of message {message.MessageId}.");
+                _logger?.LogWarning($"Skipping redundant processing of message {messageBody}.");
                 return;
             }
 
@@ -65,6 +65,14 @@ namespace Visavi.Quantis
                 BlobServiceClient blobServiceClient = new BlobServiceClient(_storageConnectionString);
                 BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(EquityContainerService.EquityArchivesContainerName);
                 BlobClient blobClient = containerClient.GetBlobClient(usDerivedSharepricesDailySource);
+                foreach (var blob in containerClient.GetBlobs())
+                {
+                    if (blob.Name.StartsWith(EquityContainerService.WorkingSetPrefix))
+                    {
+                        _logger?.LogInformation($"Deleting Blob: {blob.Name}, Size: {blob.Properties.ContentLength}");
+                        containerClient.DeleteBlobIfExists(blob.Name);
+                    }
+                }
 
                 _logger?.LogInformation($" Blob Client: {blobClient.BlobContainerName}, URI: {blobClient.Uri}, Exists: {blobClient.Exists()}");
                 var streamReader = new StreamReader(blobClient.OpenRead());
@@ -81,7 +89,7 @@ namespace Visavi.Quantis
                         lineCount++;
                     }
 
-                    string workingFilename = $"workingset\\us-derived-shareprices-working-{timeId}-{workingCount}.csv";
+                    string workingFilename = $"{EquityContainerService.WorkingSetPrefix}\\us-derived-shareprices-working-{timeId}-{workingCount}.csv";
                     _logger?.LogInformation($"Writing working file {workingFilename}");
                     BlobClient workingSetWriterClient = containerClient.GetBlobClient(workingFilename);
                     using (var workingSetStream = workingSetWriterClient.OpenWrite(true))
@@ -98,14 +106,9 @@ namespace Visavi.Quantis
             {
                 lock (_workingMessageList)
                 {
-                    _workingMessageList.Remove(message.MessageId);
+                    _workingMessageList.Remove(messageBody);
                 }
             }
-
-            // var recordCount = await new DerivedSharepriceFileLoader(_logger).LoadRecords();
-
-            //string output = $"Reloaded {recordCount} records for Queue Message {message.MessageId}.";
-            //_logger?.LogInformation(output);
         }
     }
 }

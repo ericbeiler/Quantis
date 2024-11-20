@@ -9,6 +9,7 @@ namespace Visavi.Quantis
     internal class DerivedSharepriceFileLoader
     {
         private const int batchSize = 5000;
+        private const int MergeWarningThresholdMs = 8000;
         private readonly ILogger? _logger;
         private readonly string? _dbConnectionString;
 
@@ -42,7 +43,7 @@ namespace Visavi.Quantis
                     records.Add(record);
                     if (records.Count() > batchSize)
                     {
-                        await BulkInsertEquityProperties(records);
+                        await BulkMergeEquityProperties(records);
                         totalRecordCount += records.Count();
                         records = new List<EquityProperties>();
                     }
@@ -57,10 +58,11 @@ namespace Visavi.Quantis
         }
 
 
-        private async Task BulkInsertEquityProperties(List<EquityProperties> records)
+        private async Task BulkMergeEquityProperties(List<EquityProperties> records)
         {
             var start = DateTime.Now;
-            _logger?.LogInformation($"Creating temp table of {records?.Count() ?? 0}, starting with {records?.FirstOrDefault()}.");
+            var firstRecord = records?.FirstOrDefault();
+            _logger?.LogDebug($"Creating temp table of {records?.Count() ?? 0}, starting with {firstRecord}.");
             DataTable newRows = new DataTable("dbo.NewEquitiesDataType");
             newRows.Columns.Add("SimFinId", typeof(int));
             newRows.Columns.Add("Ticker", typeof(string));
@@ -126,7 +128,7 @@ namespace Visavi.Quantis
 #pragma warning restore CS8600 // Converting null literal or possible null value to non-nullable type.
                 newRows.Rows.Add(dataRow);
             }
-            _logger?.LogInformation($"Completed creation of temp table of {records?.Count() ?? 0}, starting with {records?.FirstOrDefault()}.");
+            _logger?.LogDebug($"Completed creation of temp table of {records?.Count() ?? 0}, starting with {firstRecord}.");
 
             using var connection = new SqlConnection(_dbConnectionString);
             await connection.OpenAsync();
@@ -175,7 +177,7 @@ namespace Visavi.Quantis
             parameter.SqlDbType = SqlDbType.Structured;
             parameter.TypeName = "dbo.NewEquitiesDataType";
 
-            _logger?.LogInformation($"Initiating bulk merge of {records?.Count() ?? 0}, transaction {transaction.GetHashCode()}, starting with {records?.FirstOrDefault()}.");
+            _logger?.LogDebug($"Initiating bulk merge of {records?.Count() ?? 0}, transaction {transaction.GetHashCode()}, starting with {firstRecord}.");
             try
             {
                 await command.ExecuteNonQueryAsync();
@@ -183,10 +185,20 @@ namespace Visavi.Quantis
             }
             catch (Exception ex)
             {
-                _logger?.LogError($"Error during bulk merge:, transaction {transaction.GetHashCode()}:\n{ex}");
+                _logger?.LogError(ex, $"Error during bulk merge:, transaction {transaction.GetHashCode()}");
                 throw;
             }
-            _logger?.LogInformation($"Completeed transaction {transaction.GetHashCode()} in {(int)Math.Ceiling((DateTime.Now - start).TotalMilliseconds)} ms.");
+
+            var completionMs = (int)Math.Ceiling((DateTime.Now - start).TotalMilliseconds);
+            if (completionMs > MergeWarningThresholdMs)
+            {
+                _logger?.LogWarning($"Excessive delay in completed transaction {transaction.GetHashCode()} ({firstRecord}). Duration: {completionMs}");
+            }
+            else
+            {
+                _logger?.LogDebug($"Completed transaction {transaction.GetHashCode()} ({firstRecord?.Ticker}) in {completionMs} ms.");
+            }
+            _logger?.LogMetric("BulkMergeDurationMs", completionMs);
         }
     }
 }

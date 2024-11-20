@@ -4,11 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using System.Text;
-using Visavi.Quantis;
 
-namespace QuantisFunctions
+namespace Visavi.Quantis
 {
     public class ReloadEquities
     {
@@ -27,7 +25,7 @@ namespace QuantisFunctions
         }
 
         [Function("ReloadEquities")]
-        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req)
+        public async Task<IActionResult> ReleoadEquities([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req)
         {
             _logger?.LogInformation("Queuing Reload Equities Task.");
             try
@@ -35,7 +33,6 @@ namespace QuantisFunctions
                 var queueServiceClient = new QueueServiceClient(_storageConnectionString);
                 var queueClient = queueServiceClient.GetQueueClient(EquityQueueService.EquityQueueName);
                 await queueClient.CreateIfNotExistsAsync();
-                var messageContent = JsonConvert.SerializeObject(new { Property1 = "Value1", Property2 = "Value2" });
                 var receipt = await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(EquityQueueService.ReloadMessage)));
                 return new OkObjectResult($"Reload Equities Queued: {receipt.Value.MessageId}");
             }
