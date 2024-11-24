@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Visavi.Quantis
+namespace Visavi.Quantis.EquitiesDataService
 {
-    public class EquityProperties
+    public class DailyEquityRecord
     {
         public required string Ticker { get; set; }
         public int SimFinId { get; set; }
@@ -36,10 +32,27 @@ namespace Visavi.Quantis
         public float? AltmanZScore { get; set; }
         public float? DividendYield { get; set; }
         public float? PriceToEarningsAdjusted { get; set; }
+        public DateTime Y1Date { get; set; }
+        public float? Y1AdjClose { get; set; }
+        public float? Y1Cagr { get; set; }
+        public float? Y1TotalReturn { get; set; }
+        public DateTime Y2Date { get; set; }
+        public float? Y2AdjClose { get; set; }
+        public float? Y2Cagr { get; set; }
+        public float? Y2TotalReturn { get; set; }
+        public DateTime Y3Date { get; set; }
+        public float? Y3AdjClose { get; set; }
+        public float? Y3Cagr { get; set; }
+        public float? Y3TotalReturn { get; set; }
+        public DateTime Y5Date { get; set; }
+        public float? Y5AdjClose { get; set; }
+        public float? Y5Cagr { get; set; }
+        public float? Y5TotalReturn { get; set; }
+        public DateTime YearlyReturnsTimestamp { get; set; }
 
         public override string ToString()
         {
-            return $"Ticker: {Ticker}, Date: {Date}, Open: {Open}, AdjClose: {AdjClose}, PriceToEarningsTTM: {PriceToEarningsTTM}, PriceToSalesTTM: {PriceToSalesTTM}, ...";
+            return $"Equity Data: {Ticker}, {Date}, Open: {Open}, AdjClose: {AdjClose}, ...";
         }
     }
 }

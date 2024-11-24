@@ -4,25 +4,19 @@ using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Globalization;
 
-namespace Visavi.Quantis
+namespace Visavi.Quantis.EquitiesDataService
 {
     internal class DerivedSharepriceFileLoader
     {
         private const int batchSize = 5000;
         private const int MergeWarningThresholdMs = 8000;
-        private readonly ILogger? _logger;
-        private readonly string? _dbConnectionString;
+        private Connections _connections;
         internal const string FileDelimiter = ";";
+        private ILogger _logger => _connections.Logger;
 
-        public DerivedSharepriceFileLoader(ILogger? logger = null)
+        public DerivedSharepriceFileLoader(Connections connections)
         {
-            _logger = logger;
-
-            _dbConnectionString = Environment.GetEnvironmentVariable("QuantisDbConnection");
-            if (string.IsNullOrEmpty(_dbConnectionString))
-            {
-                _logger?.LogError("QuantisDbConnection environment variable is missing.");
-            }
+            _connections = connections;
         }
 
         internal async Task<int> LoadRecords(Stream derivedSharePricesDailyStream)
@@ -36,17 +30,17 @@ namespace Visavi.Quantis
                     Delimiter = FileDelimiter
                 });
 
-                csv.Context.RegisterClassMap<EquityPropertiesMap>();
-                var records = new List<EquityProperties>();
+                csv.Context.RegisterClassMap<DerivedSharepriceCsvToEquityRecordMap>();
+                var records = new List<DailyEquityRecord>();
 
-                foreach (var record in csv.GetRecords<EquityProperties>())
+                foreach (var record in csv.GetRecords<DailyEquityRecord>())
                 {
                     records.Add(record);
                     if (records.Count() > batchSize)
                     {
                         await BulkMergeEquityProperties(records);
                         totalRecordCount += records.Count();
-                        records = new List<EquityProperties>();
+                        records = new List<DailyEquityRecord>();
                     }
                 }
                 return totalRecordCount;
@@ -59,7 +53,7 @@ namespace Visavi.Quantis
         }
 
 
-        private async Task BulkMergeEquityProperties(List<EquityProperties> records)
+        private async Task BulkMergeEquityProperties(List<DailyEquityRecord> records)
         {
             var start = DateTime.Now;
             var firstRecord = records?.FirstOrDefault();
@@ -94,7 +88,7 @@ namespace Visavi.Quantis
             newRows.Columns.Add("DividendYield", typeof(float)).AllowDBNull = true;
             newRows.Columns.Add("PriceToEarningsAdjusted", typeof(float)).AllowDBNull = true;
 
-            foreach (var record in records ?? new List<EquityProperties>())
+            foreach (var record in records ?? new List<DailyEquityRecord>())
             {
                 DataRow dataRow = newRows.NewRow();
                 dataRow["SimFinId"] = record.SimFinId;
@@ -131,7 +125,7 @@ namespace Visavi.Quantis
             }
             _logger?.LogDebug($"Completed creation of temp table of {records?.Count() ?? 0}, starting with {firstRecord}.");
 
-            using var connection = new SqlConnection(_dbConnectionString);
+            using var connection = _connections.DbConnection;
             await connection.OpenAsync();
 
             using var transaction = connection.BeginTransaction();

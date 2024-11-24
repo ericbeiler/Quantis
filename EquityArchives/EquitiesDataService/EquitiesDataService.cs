@@ -1,20 +1,20 @@
 using Azure;
 using Azure.Storage.Blobs;
-using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
+using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 
-namespace Visavi.Quantis
+namespace Visavi.Quantis.EquitiesDataService
 {
-    public class LoadEquitiesService
+    public class EquitiesDataService
     {
-        private readonly ILogger<LoadEquitiesService>? _logger;
+        private readonly ILogger<EquitiesDataService> _logger;
+        private readonly Connections _connections;
 
         // HTTP Requests
         private static readonly string reloadDaysParmName = "reloadDays";
@@ -22,33 +22,22 @@ namespace Visavi.Quantis
         // Queue Requests
         internal const string EquityQueueName = "quantis-equities";
         private static readonly List<string> _workingMessageList = new List<string>();  // TODO: Scalable solution needed
-        private readonly string? _dbConnectionString;
+
         private const string loadEquitiesMessage = "LoadEquities";
         private const string updateYearlyReturnsMessage = "UpdateYearlyReturns";
+        private const string exportTrainingDataMessage = "ExportTrainingData";
 
         // Container Management
         private const string usDerivedSharepricesDailySource = "us-derived-shareprices-daily.csv";
         internal const string EquityArchivesContainerName = "equity-archives";
         internal const int maxRows = 200000;
-        private readonly string? _storageConnectionString;
         private static readonly List<string> _workingFileList = new List<string>();  // TODO: Scalable solution needed
         internal const string WorkingSetPrefix = "workingset";
 
-        public LoadEquitiesService(ILogger<LoadEquitiesService> logger, IConfiguration configuration)
+        public EquitiesDataService(ILogger<EquitiesDataService> logger, Connections connections)
         {
             _logger = logger;
-
-            _storageConnectionString = configuration["QuantisStorageConnection"];
-            if (string.IsNullOrEmpty(_storageConnectionString))
-            {
-                _logger?.LogError("QuantisStorageConnection value is missing.");
-            }
-
-            _dbConnectionString = configuration["QuantisDbConnection"];
-            if (string.IsNullOrEmpty(_dbConnectionString))
-            {
-                _logger?.LogError("QuantisDbConnection value is missing.");
-            }
+            _connections = connections;
         }
 
         [Function("LoadEquities")]
@@ -66,12 +55,33 @@ namespace Visavi.Quantis
             return new OkObjectResult(resultText);
         }
 
+        [Function("ExportTrainingData")]
+        public async Task<IActionResult> HttpExportTrainingData([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
+        {
+            _logger?.LogInformation("Queuing Export of Training Data.");
+            List<int> simFinIds = new List<int>();
+            using var connection = _connections.DbConnection;
+            {
+                simFinIds = (await connection.QueryAsync<int>("SELECT DISTINCT SimFinId FROM EquityHistory")).ToList();
+            }
+            foreach (int simFinId in simFinIds)
+            {
+                var receipt = await sendEquitiesQueueMessage(new EquitiesQueueMessage
+                {
+                    Message = exportTrainingDataMessage,
+                    SimFinId = simFinId
+                });
+            }
+            var resultText = $"Export Training Data Queued: {simFinIds.Count()} Total Equities";
+            _logger?.LogInformation(resultText);
+            return new OkObjectResult(resultText);
+        }
+
         [Function("UpdateYearlyReturns")]
         public async Task<IActionResult> HttpUpdateYearlyReturns([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
         {
             int messagesQueued = 0;
             _logger?.LogInformation("Queuing Update Yearly Returns Task.");
-            uint? reloadDays = string.IsNullOrWhiteSpace(req.Query[reloadDaysParmName]) ? null : Convert.ToUInt32(req.Query[reloadDaysParmName]);
             for (int year = 2000; year <= DateTime.Now.Year; year++)
             {
                 for (int month = 1; month <= 12; month++)
@@ -94,7 +104,7 @@ namespace Visavi.Quantis
         private async Task parseEquitiesFile(uint? reloadDays)
         {
             var startTime = DateTime.Now;
-            BlobServiceClient blobServiceClient = new BlobServiceClient(_storageConnectionString);
+            BlobServiceClient blobServiceClient = _connections.BlobConnection;
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(EquityArchivesContainerName);
             BlobClient blobClient = containerClient.GetBlobClient(usDerivedSharepricesDailySource);
             foreach (var blob in containerClient.GetBlobs())
@@ -108,7 +118,7 @@ namespace Visavi.Quantis
 
             _logger?.LogInformation($" Blob Client: {blobClient.BlobContainerName}, URI: {blobClient.Uri}, Exists: {blobClient.Exists()}");
             var streamReader = new StreamReader(blobClient.OpenRead());
-            string? columnHeaderLine = (await streamReader.ReadLineAsync()) + "\n";
+            string? columnHeaderLine = await streamReader.ReadLineAsync() + "\n";
             _logger?.LogInformation($" Header: {columnHeaderLine}");
             int workingCount = 1;
 
@@ -205,6 +215,11 @@ namespace Visavi.Quantis
                             await updateYearlyReturns(queueMessage.StartDate.Value, queueMessage.EndDate.Value);
                         }
                         break;
+
+                    case exportTrainingDataMessage:
+
+                        await new TrainingDataExport(_connections).ExportTrainingDataAsync(queueMessage.SimFinId.Value);
+                        break;
                 }
             }
             finally
@@ -243,10 +258,10 @@ namespace Visavi.Quantis
                 if (stream.Length > 0)
                 {
                     _logger?.LogInformation($"Received working file {name}");
-                    recordCount = await new DerivedSharepriceFileLoader(_logger).LoadRecords(stream);
+                    recordCount = await new DerivedSharepriceFileLoader(_connections).LoadRecords(stream);
 
                     _logger?.LogInformation($"Processed {name} in {(int)Math.Ceiling((DateTime.Now - startTime).TotalMilliseconds)} ms, Records Processed: {recordCount}\n  Removing {name}");
-                    BlobServiceClient blobServiceClient = new BlobServiceClient(_storageConnectionString);
+                    BlobServiceClient blobServiceClient = _connections.BlobConnection;
                     BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(EquityArchivesContainerName);
                     await containerClient.DeleteBlobIfExistsAsync("/" + WorkingSetPrefix + "/" + name);
                 }
@@ -273,7 +288,7 @@ namespace Visavi.Quantis
 
         private async Task<Response<SendReceipt>> sendEquitiesQueueMessage(EquitiesQueueMessage message)
         {
-            var queueServiceClient = new QueueServiceClient(_storageConnectionString);
+            var queueServiceClient = _connections.QueueConnection;
             var queueClient = queueServiceClient.GetQueueClient(EquityQueueName);
             await queueClient.CreateIfNotExistsAsync();
 
@@ -298,5 +313,6 @@ namespace Visavi.Quantis
         public uint? ReloadDays { get; set; }
         public DateTime? StartDate { get; set; }
         public DateTime? EndDate { get; set; }
+        public int? SimFinId { get; set; }
     }
 }

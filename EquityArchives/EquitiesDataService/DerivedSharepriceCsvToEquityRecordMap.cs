@@ -2,11 +2,11 @@ using CsvHelper.Configuration;
 using System.Globalization;
 
 
-namespace Visavi.Quantis
+namespace Visavi.Quantis.EquitiesDataService
 {
-    public class EquityPropertiesMap : ClassMap<EquityProperties>
+    public class DerivedSharepriceCsvToEquityRecordMap : ClassMap<DailyEquityRecord>
     {
-        public EquityPropertiesMap()
+        public DerivedSharepriceCsvToEquityRecordMap()
         {
             AutoMap(CultureInfo.InvariantCulture);
             Map(m => m.Ticker).Name("Ticker");

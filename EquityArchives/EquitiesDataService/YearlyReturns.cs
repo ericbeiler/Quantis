@@ -1,16 +1,8 @@
-﻿using CsvHelper;
-using Microsoft.Data.SqlClient;
+﻿using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Data;
-using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Visavi.Quantis
+namespace Visavi.Quantis.EquitiesDataService
 {
     internal class YearlyReturns
     {
