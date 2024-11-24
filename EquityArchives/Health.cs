@@ -84,7 +84,7 @@ namespace EquityArchives
                 {
                     output += "\nQueue Statistics\n";
                     var queueServiceClient = new QueueServiceClient(_storageConnectionString);
-                    var queueClient = queueServiceClient.GetQueueClient(EquityQueueService.EquityQueueName);
+                    var queueClient = queueServiceClient.GetQueueClient(LoadEquitiesService.EquityQueueName);
                     output += $"URI: {queueServiceClient.Uri}\n";
                     foreach (var queue in queueServiceClient.GetQueues())
                     {

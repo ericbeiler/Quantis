@@ -12,6 +12,7 @@ namespace Visavi.Quantis
         private const int MergeWarningThresholdMs = 8000;
         private readonly ILogger? _logger;
         private readonly string? _dbConnectionString;
+        internal const string FileDelimiter = ";";
 
         public DerivedSharepriceFileLoader(ILogger? logger = null)
         {
@@ -32,7 +33,7 @@ namespace Visavi.Quantis
                 using var blobStreamReader = new StreamReader(derivedSharePricesDailyStream);
                 using var csv = new CsvReader(blobStreamReader, new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
                 {
-                    Delimiter = ";"
+                    Delimiter = FileDelimiter
                 });
 
                 csv.Context.RegisterClassMap<EquityPropertiesMap>();
