@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace Visavi.Quantis.EquitiesDataService
+namespace Visavi.Quantis.Data
 {
-    public class DailyEquityRecord
+    public class EquityModelingRecord
     {
         public required string Ticker { get; set; }
         public int SimFinId { get; set; }

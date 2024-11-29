@@ -7,7 +7,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Collections;
-using Visavi.Quantis.EquitiesDataService;
+using Visavi.Quantis.Data;
 
 namespace EquityArchives
 {
@@ -84,7 +84,7 @@ namespace EquityArchives
                 {
                     output += "\nQueue Statistics\n";
                     var queueServiceClient = new QueueServiceClient(_storageConnectionString);
-                    var queueClient = queueServiceClient.GetQueueClient(EquitiesDataService.EquityQueueName);
+                    var queueClient = queueServiceClient.GetQueueClient(DataService.EquityQueueName);
                     output += $"URI: {queueServiceClient.Uri}\n";
                     foreach (var queue in queueServiceClient.GetQueues())
                     {

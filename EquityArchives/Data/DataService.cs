@@ -2,30 +2,27 @@ using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues.Models;
 using Dapper;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace Visavi.Quantis.EquitiesDataService
+namespace Visavi.Quantis.Data
 {
-    public class EquitiesDataService
+    public class DataService
     {
-        private readonly ILogger<EquitiesDataService> _logger;
+        internal const string ContainerFolderSeperator = "/";
+        private readonly ILogger<DataService> _logger;
         private readonly Connections _connections;
-
-        // HTTP Requests
-        private static readonly string reloadDaysParmName = "reloadDays";
 
         // Queue Requests
         internal const string EquityQueueName = "quantis-equities";
         private static readonly List<string> _workingMessageList = new List<string>();  // TODO: Scalable solution needed
 
-        private const string loadEquitiesMessage = "LoadEquities";
-        private const string updateYearlyReturnsMessage = "UpdateYearlyReturns";
-        private const string exportTrainingDataMessage = "ExportTrainingData";
+        internal const string LoadEquitiesMessage = "LoadEquities";
+        internal const string UpdateYearlyReturnsMessage = "UpdateYearlyReturns";
+        internal const string ExportTrainingDataMessage = "ExportTrainingData";
 
         // Container Management
         private const string usDerivedSharepricesDailySource = "us-derived-shareprices-daily.csv";
@@ -34,71 +31,16 @@ namespace Visavi.Quantis.EquitiesDataService
         private static readonly List<string> _workingFileList = new List<string>();  // TODO: Scalable solution needed
         internal const string WorkingSetPrefix = "workingset";
 
-        public EquitiesDataService(ILogger<EquitiesDataService> logger, Connections connections)
+        public DataService(ILogger<DataService> logger, Connections connections)
         {
             _logger = logger;
             _connections = connections;
         }
 
-        [Function("LoadEquities")]
-        public async Task<IActionResult> HttpLoadEquities([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
+        private async Task<DateTime> getEquitiesLastUpdate()
         {
-            _logger?.LogInformation("Queuing Reload Equities Task.");
-            uint? reloadDays = string.IsNullOrWhiteSpace(req.Query[reloadDaysParmName]) ? null : Convert.ToUInt32(req.Query[reloadDaysParmName]);
-            var receipt = await sendEquitiesQueueMessage(new EquitiesQueueMessage
-            {
-                Message = loadEquitiesMessage,
-                ReloadDays = reloadDays
-            });
-            var resultText = $"Reload Equities Queued: {receipt.Value.MessageId}";
-            _logger?.LogInformation(resultText);
-            return new OkObjectResult(resultText);
-        }
-
-        [Function("ExportTrainingData")]
-        public async Task<IActionResult> HttpExportTrainingData([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
-        {
-            _logger?.LogInformation("Queuing Export of Training Data.");
-            List<int> simFinIds = new List<int>();
             using var connection = _connections.DbConnection;
-            {
-                simFinIds = (await connection.QueryAsync<int>("SELECT DISTINCT SimFinId FROM EquityHistory")).ToList();
-            }
-            foreach (int simFinId in simFinIds)
-            {
-                var receipt = await sendEquitiesQueueMessage(new EquitiesQueueMessage
-                {
-                    Message = exportTrainingDataMessage,
-                    SimFinId = simFinId
-                });
-            }
-            var resultText = $"Export Training Data Queued: {simFinIds.Count()} Total Equities";
-            _logger?.LogInformation(resultText);
-            return new OkObjectResult(resultText);
-        }
-
-        [Function("UpdateYearlyReturns")]
-        public async Task<IActionResult> HttpUpdateYearlyReturns([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
-        {
-            int messagesQueued = 0;
-            _logger?.LogInformation("Queuing Update Yearly Returns Task.");
-            for (int year = 2000; year <= DateTime.Now.Year; year++)
-            {
-                for (int month = 1; month <= 12; month++)
-                {
-                    var receipt = await sendEquitiesQueueMessage(new EquitiesQueueMessage
-                    {
-                        Message = updateYearlyReturnsMessage,
-                        StartDate = new DateTime(year, month, 1),
-                        EndDate = new DateTime(year, month, 1).AddMonths(1)
-                    });
-                    _logger?.LogDebug($"Update Yearly Returns Queued: {receipt.Value.MessageId}");
-                }
-                messagesQueued++;
-            }
-            var resultText = $"Update Yearly Returns Queued: {messagesQueued} Total Messages";
-            _logger?.LogInformation(resultText);
-            return new OkObjectResult(resultText);
+            return (await connection.QueryAsync<DateTime>("Select Top 1 [Date] from EquityHistory order by [Date] desc")).FirstOrDefault();
         }
 
         private async Task parseEquitiesFile(uint? reloadDays)
@@ -205,21 +147,24 @@ namespace Visavi.Quantis.EquitiesDataService
                 var queueMessage = JsonSerializer.Deserialize<EquitiesQueueMessage>(messageBody);
                 switch (queueMessage?.Message)
                 {
-                    case loadEquitiesMessage:
+                    case LoadEquitiesMessage:
                         await parseEquitiesFile(queueMessage?.ReloadDays);
                         break;
 
-                    case updateYearlyReturnsMessage:
+                    case UpdateYearlyReturnsMessage:
                         if (queueMessage?.StartDate.HasValue == true && queueMessage?.EndDate.HasValue == true)
                         {
                             await updateYearlyReturns(queueMessage.StartDate.Value, queueMessage.EndDate.Value);
                         }
                         break;
 
-                    case exportTrainingDataMessage:
+                    case ExportTrainingDataMessage:
 
-                        await new TrainingDataExport(_connections).ExportTrainingDataAsync(queueMessage.SimFinId.Value);
+                        await new TrainingDataExport(_connections).ExportTrainingDataAsync(queueMessage.SimFinId.Value,
+                                                                                            queueMessage.EndDate.Value,
+                                                                                            queueMessage.OutputPath);
                         break;
+
                 }
             }
             finally
@@ -305,14 +250,5 @@ namespace Visavi.Quantis.EquitiesDataService
 
             return rowsUpdated;
         }
-    }
-
-    public class EquitiesQueueMessage
-    {
-        public string Message { get; set; }
-        public uint? ReloadDays { get; set; }
-        public DateTime? StartDate { get; set; }
-        public DateTime? EndDate { get; set; }
-        public int? SimFinId { get; set; }
     }
 }

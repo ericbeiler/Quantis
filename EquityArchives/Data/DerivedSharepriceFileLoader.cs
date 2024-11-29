@@ -1,10 +1,9 @@
 ﻿using CsvHelper;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Globalization;
 
-namespace Visavi.Quantis.EquitiesDataService
+namespace Visavi.Quantis.Data
 {
     internal class DerivedSharepriceFileLoader
     {
@@ -31,16 +30,16 @@ namespace Visavi.Quantis.EquitiesDataService
                 });
 
                 csv.Context.RegisterClassMap<DerivedSharepriceCsvToEquityRecordMap>();
-                var records = new List<DailyEquityRecord>();
+                var records = new List<EquityModelingRecord>();
 
-                foreach (var record in csv.GetRecords<DailyEquityRecord>())
+                foreach (var record in csv.GetRecords<EquityModelingRecord>())
                 {
                     records.Add(record);
                     if (records.Count() > batchSize)
                     {
                         await BulkMergeEquityProperties(records);
                         totalRecordCount += records.Count();
-                        records = new List<DailyEquityRecord>();
+                        records = new List<EquityModelingRecord>();
                     }
                 }
                 return totalRecordCount;
@@ -53,7 +52,7 @@ namespace Visavi.Quantis.EquitiesDataService
         }
 
 
-        private async Task BulkMergeEquityProperties(List<DailyEquityRecord> records)
+        private async Task BulkMergeEquityProperties(List<EquityModelingRecord> records)
         {
             var start = DateTime.Now;
             var firstRecord = records?.FirstOrDefault();
@@ -88,7 +87,7 @@ namespace Visavi.Quantis.EquitiesDataService
             newRows.Columns.Add("DividendYield", typeof(float)).AllowDBNull = true;
             newRows.Columns.Add("PriceToEarningsAdjusted", typeof(float)).AllowDBNull = true;
 
-            foreach (var record in records ?? new List<DailyEquityRecord>())
+            foreach (var record in records ?? new List<EquityModelingRecord>())
             {
                 DataRow dataRow = newRows.NewRow();
                 dataRow["SimFinId"] = record.SimFinId;

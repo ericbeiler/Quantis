@@ -2,9 +2,9 @@ using CsvHelper.Configuration;
 using System.Globalization;
 
 
-namespace Visavi.Quantis.EquitiesDataService
+namespace Visavi.Quantis.Data
 {
-    public class DerivedSharepriceCsvToEquityRecordMap : ClassMap<DailyEquityRecord>
+    public class DerivedSharepriceCsvToEquityRecordMap : ClassMap<EquityModelingRecord>
     {
         public DerivedSharepriceCsvToEquityRecordMap()
         {

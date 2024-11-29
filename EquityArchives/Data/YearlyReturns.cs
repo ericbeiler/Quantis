@@ -2,7 +2,7 @@
 using Microsoft.Extensions.Logging;
 using System.Data;
 
-namespace Visavi.Quantis.EquitiesDataService
+namespace Visavi.Quantis.Data
 {
     internal class YearlyReturns
     {
