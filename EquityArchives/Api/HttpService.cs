@@ -21,6 +21,7 @@ namespace Visavi.Quantis.Api
 
         // HTTP Requests
         private static readonly string reloadDaysParmName = "reloadDays";
+        private const string quantisModelingQueue = "quantis-modeling";
 
         public HttpService(ILogger<DataService> logger, Connections connections)
         {
@@ -155,7 +156,7 @@ namespace Visavi.Quantis.Api
         private async Task<Response<SendReceipt>> sendModelingMessage(TrainModelMessage message)
         {
             var queueServiceClient = _connections.QueueConnection;
-            var queueClient = queueServiceClient.GetQueueClient(ModelingService.ModelingQueueName);
+            var queueClient = queueServiceClient.GetQueueClient(quantisModelingQueue);
             await queueClient.CreateIfNotExistsAsync();
 
             string jsonMessage = JsonSerializer.Serialize(message);
