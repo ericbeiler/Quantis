@@ -19,37 +19,39 @@ namespace Visavi.Quantis.Modeling
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="stoppingToken"></param>
+        /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Model Training Service Started at: {time}", DateTime.Now);
-            while (!stoppingToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 QueueMessage? poppedMessage = null;
                 try
                 {
                     // Retrieving the training parameters
                     _queueClient.CreateIfNotExists();
-                    poppedMessage = _queueClient.ReceiveMessage(TimeSpan.FromMinutes(180)).Value;
+
+                    _logger.LogInformation("Waiting for message...");
+                    poppedMessage = _queueClient.ReceiveMessage(TimeSpan.FromMinutes(180), cancellationToken).Value;
                     var trainingParameters = decodeMessage(poppedMessage);
                     if (trainingParameters == null)
                     {
-                        _logger.LogInformation("No build model message is in the queue.");
-                        await Task.Delay(60000, stoppingToken);
+                        _logger.LogInformation("No model message is in the queue, delaying 1 minute.");
+                        await Task.Delay(60000, cancellationToken);
                         continue;
                     }
 
                     _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
-                    var trainingJob = new ModelTrainingJob(trainingParameters, _logger, stoppingToken);
+                    var trainingJob = new ModelTrainingJob(trainingParameters, _logger, cancellationToken);
                     await trainingJob.ExecuteAsync();
 
                     _logger.LogInformation($"Deleting message {poppedMessage?.MessageId}.");
-                    _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, stoppingToken);
+                    _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Could not build model for message {poppedMessage?.MessageId}.");
+                    _logger.LogError(ex, $"Could not build model for message {poppedMessage?.MessageId}\n{ex.ToString()}.");
                     continue;
                 }
             }

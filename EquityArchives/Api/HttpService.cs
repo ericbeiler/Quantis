@@ -16,32 +16,60 @@ namespace Visavi.Quantis.Api
 {
     public class HttpService
     {
-        private readonly ILogger<DataService> _logger;
+        private readonly ILogger<HttpService> _logger;
         private readonly Connections _connections;
+        private readonly ModelService _modelService;
 
         // HTTP Requests
         private static readonly string reloadDaysParmName = "reloadDays";
         private const string quantisModelingQueue = "quantis-modeling";
 
-        public HttpService(ILogger<DataService> logger, Connections connections)
+        public HttpService(ILogger<HttpService> logger, Connections connections, ModelService modelService)
         {
             _logger = logger;
             _connections = connections;
+            _modelService = modelService;
         }
 
-        [Function("BuildModel")]
-        public async Task<IActionResult> HttpBuildEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
+        [Function("EquityModel")]
+        public async Task<IActionResult> HttpEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post", "get"])] HttpRequest req)
+        {
+            switch (req.Method.ToLower())
+            {
+                case "post":
+                    req.Query.TryGetValue("equityIndex", out var equityIndex);
+                    req.Query.TryGetValue("targetDuration", out var targetDuration);
+                    return await httpPostEquityModel(equityIndex, Convert.ToInt32(targetDuration));
+
+                case "get":
+                    return await httpGetEquityModel();
+
+                default:
+                    return new BadRequestResult();
+            }
+        }
+
+        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int targetDuration)
         {
             _logger?.LogInformation("Queuing Training of Model.");
 
-            req.Query.TryGetValue("equityIndex", out var equityIndex);
-            req.Query.TryGetValue("targetDuration", out var targetDuration);
             var receipt = await sendModelingMessage(new TrainModelMessage
             {
                 Index = equityIndex,
-                TargetDuration = Convert.ToInt32(targetDuration)
+                TargetDuration = targetDuration
             });
             var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Years): {targetDuration}";
+            _logger?.LogInformation(resultText);
+            return new OkObjectResult(resultText);
+        }
+
+        private async Task<IActionResult> httpGetEquityModel()
+        {
+            _logger?.LogInformation("Getting list of trained models.");
+
+            var models = await _modelService.GetModelsAsync();
+            var resultText = JsonSerializer.Serialize(models);
+
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
         }

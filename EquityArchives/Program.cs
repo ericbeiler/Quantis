@@ -9,6 +9,7 @@ var host = new HostBuilder()
         services.AddApplicationInsightsTelemetryWorkerService();
         services.ConfigureFunctionsApplicationInsights();
         services.AddSingleton<Visavi.Quantis.Connections>();
+        services.AddSingleton<Visavi.Quantis.Modeling.ModelService>();
     })
     .Build();
 

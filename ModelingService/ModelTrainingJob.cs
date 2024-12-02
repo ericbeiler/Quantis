@@ -157,41 +157,6 @@ namespace Visavi.Quantis.Modeling
                                 {indexFilter}";
         }
 
-        private async Task saveModel()
-        {
-            string blobModelName = $"{_trainingParameters?.Index}-{_trainingParameters?.TargetDuration}-{_startTime.ToString(datetimeTagFormat)}.zip";
-            _logger?.LogInformation($"Writing blob model: {blobModelName}");
-
-            BlobServiceClient blobServiceClient = blobServiceClient = new BlobServiceClient(TrainModelsService.StorageConnectionString);
-            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(equityModelsContainer);
-            containerClient.CreateIfNotExists();
-
-            BlobClient workingSetWriterClient = containerClient.GetBlobClient(blobModelName);
-            using (var modelBlobStream = workingSetWriterClient.OpenWrite(true))
-            {
-                _mlContext.Model.Save(trainedModel, _modelingDataset.Schema, modelBlobStream);
-                modelBlobStream.Flush();
-                modelBlobStream.Close();
-            }
-
-            _logger.LogInformation("Saved Model, updating metadata");
-            using var connection = new SqlConnection(dbConnectionString);
-            await connection.ExecuteAsync("INSERT INTO EquityModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
-                                    "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)",
-                                    new
-                                    {
-                                        Type = "Regression",
-                                        _trainingParameters?.Index,
-                                        TargetDuration = _trainingParameters?.TargetDuration * 12,
-                                        Timestamp = _startTime,
-                                        Path = blobModelName,
-                                        _metrics.MeanAbsoluteError,
-                                        _metrics.RootMeanSquaredError,
-                                        _metrics.LossFunction,
-                                        _metrics.RSquared
-                                    });
-        }
-
         private IDataView buildDataLoader()
         {
             //Create ML Context with seed for repeteable/deterministic results
@@ -253,6 +218,41 @@ namespace Visavi.Quantis.Modeling
             var trainer = _mlContext.Regression.Trainers.FastTree(labelColumnName: "Label", featureColumnName: "Features");
 
             return dataProcessPipeline.Append(trainer);
+        }
+
+        private async Task saveModel()
+        {
+            string blobModelName = $"{_trainingParameters?.Index}-{_trainingParameters?.TargetDuration}-{_startTime.ToString(datetimeTagFormat)}.zip";
+            _logger?.LogInformation($"Writing blob model: {blobModelName}");
+
+            BlobServiceClient blobServiceClient = blobServiceClient = new BlobServiceClient(TrainModelsService.StorageConnectionString);
+            BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(equityModelsContainer);
+            containerClient.CreateIfNotExists();
+
+            BlobClient workingSetWriterClient = containerClient.GetBlobClient(blobModelName);
+            using (var modelBlobStream = workingSetWriterClient.OpenWrite(true))
+            {
+                _mlContext.Model.Save(trainedModel, _modelingDataset.Schema, modelBlobStream);
+                modelBlobStream.Flush();
+                modelBlobStream.Close();
+            }
+
+            _logger.LogInformation("Saved Model, updating metadata");
+            using var connection = new SqlConnection(dbConnectionString);
+            await connection.ExecuteAsync("INSERT INTO EquityModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
+                                    "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)",
+                                    new
+                                    {
+                                        Type = "Regression",
+                                        _trainingParameters?.Index,
+                                        TargetDuration = _trainingParameters?.TargetDuration * 12,
+                                        Timestamp = _startTime,
+                                        Path = blobModelName,
+                                        _metrics.MeanAbsoluteError,
+                                        _metrics.RootMeanSquaredError,
+                                        _metrics.LossFunction,
+                                        _metrics.RSquared
+                                    });
         }
     }
 }
