@@ -1,24 +1,20 @@
-using Azure.Storage.Blobs;
+﻿using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
-using Azure.Storage.Queues.Models;
 using Dapper;
 using Microsoft.Data.SqlClient;
+using Microsoft.Identity.Client;
 using Microsoft.ML;
 using Microsoft.ML.Data;
-using System.Text.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling
 {
-    internal class TrainModelMessage
-    {
-        public string Message = "Train Model";
-        public int TargetDuration { get; set; }
-        public string? Index { get; set; }
-    }
-
-
-    public class TrainModelJob : BackgroundService
+    internal class ModelTrainingJob
     {
         private const decimal minMarketCap = 10000000;
         private const decimal maxMarketCap = 10000000000000;
@@ -48,12 +44,16 @@ namespace Visavi.Quantis.Modeling
         private const float l2RegularizationValue = 0.5f;
 
         private const double testSampling = 0.2;
+        private const string datetimeTagFormat = "yyMMddHHmm";
+        private const string equityModelsContainer = "equity-models";
+        private const string dbConnectionString = "Server=tcp:quantis.database.windows.net,1433;Initial Catalog=db-quantis;Persist Security Info=False;User ID=ebeiler;Password=1076Roan!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;";
+        private const int timeoutInSeconds = 3600;
 
-        private readonly ILogger<TrainModelJob> _logger;
+        private readonly ILogger _logger;
         private readonly DateTime _startTime;
         private readonly MLContext _mlContext = new MLContext(seed: 0);
-        private readonly QueueClient _queueClient = new QueueClient(storageConnectionString, "quantis-modeling");
-        private TrainModelMessage? _trainingParameters;
+        private readonly CancellationToken _stoppingToken;
+        private readonly TrainModelMessage _trainingParameters;
         private IDataView _modelingDataset;
         private IDataView _trainingData;
         private IDataView _testingData;
@@ -61,17 +61,43 @@ namespace Visavi.Quantis.Modeling
         private ITransformer trainedModel;
         private RegressionMetrics _metrics;
 
-
-        private const string storageConnectionString = "BlobEndpoint=https://quantis.blob.core.windows.net/;QueueEndpoint=https://quantis.queue.core.windows.net/;FileEndpoint=https://quantis.file.core.windows.net/;TableEndpoint=https://quantis.table.core.windows.net/;SharedAccessSignature=sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-17T02:13:18Z&st=2024-11-16T18:13:18Z&spr=https&sig=iKRDTg8msgsX8pPrgbJo%2Fm2gZam8JxDrF%2B11PU2KsZU%3D";
-        private const string dbConnectionString = "Server=tcp:quantis.database.windows.net,1433;Initial Catalog=db-quantis;Persist Security Info=False;User ID=ebeiler;Password=1076Roan!;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;";
-        private const int timeoutInSeconds = 3600;
-        private const string datetimeTagFormat = "yyMMddHHmm";
-        private const string equityModelsContainer = "equity-models";
-
-        public TrainModelJob(ILogger<TrainModelJob> logger)
+        internal ModelTrainingJob(TrainModelMessage trainingParameters, ILogger logger, CancellationToken stoppingToken)
         {
-            _startTime = DateTime.Now;
             _logger = logger;
+            _mlContext = new MLContext();
+            _startTime = DateTime.Now;
+            _stoppingToken = stoppingToken;
+            _trainingParameters = trainingParameters;
+        }
+
+        internal async Task ExecuteAsync()
+        {
+            // Preparing the data
+            _modelingDataset = buildDataLoader();
+            var trainTestData = _mlContext.Data.TrainTestSplit(_modelingDataset, testFraction: testSampling);
+            _trainingData = trainTestData.TrainSet;
+            _testingData = trainTestData.TestSet;
+
+            // Building the training pipeline
+            _trainingPipeline = loadTrainingPipeline();
+
+            // Training the model
+            _logger.LogInformation($"Training Model, Index: {_trainingParameters?.Index}, Target Duration: {_trainingParameters?.TargetDuration}");
+            var trainedModel = _trainingPipeline.Fit(_trainingData);
+            DateTime trainingCompleteTime = DateTime.Now;
+            int trainingMinutes = Convert.ToInt32(Math.Ceiling((trainingCompleteTime - _startTime).TotalMinutes));
+            _logger.LogInformation($"Trained Model in {trainingMinutes} minutes");
+
+            // Testing the model
+            _logger.LogInformation($"Testing Model:");
+            IDataView predictions = trainedModel.Transform(_testingData);
+            _metrics = _mlContext.Regression.Evaluate(predictions, labelColumnName: "Label", scoreColumnName: "Score");
+
+            int testingMinutes = Convert.ToInt32(Math.Ceiling((DateTime.Now - trainingCompleteTime).TotalMinutes));
+            _logger.LogInformation($"Completed Testing in {testingMinutes} minute(s):\n\tRoot Mean Squared Error: {_metrics.RootMeanSquaredError}\n\tAbsolute Error: {_metrics.MeanAbsoluteError}\n\tR Squared: {_metrics.RSquared}");
+
+            // Saving the model
+            await saveModel();
         }
 
         private string geTrainModelQuery()
@@ -131,89 +157,12 @@ namespace Visavi.Quantis.Modeling
                                 {indexFilter}";
         }
 
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="stoppingToken"></param>
-        /// <returns></returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            _logger.LogInformation("Worker running at: {time}", _startTime);
-
-            try
-            {
-                // Retrieving the training parameters
-                _queueClient.CreateIfNotExists();
-                var poppedMessage = _queueClient.ReceiveMessage(TimeSpan.FromMinutes(60)).Value;
-                _trainingParameters = decodeMessage(poppedMessage);
-                if (_trainingParameters == null)
-                {
-                    _logger.LogInformation("No build model message is in the queue.");
-                    return;
-                }
-
-                // Preparing the data
-                _modelingDataset = buildDataLoader();
-                var trainTestData = _mlContext.Data.TrainTestSplit(_modelingDataset, testFraction: testSampling);
-                _trainingData = trainTestData.TrainSet;
-                _testingData = trainTestData.TestSet;
-
-                // Building the training pipeline
-                _trainingPipeline = loadTrainingPipeline();
-
-                // Training the model
-
-                _logger.LogInformation($"Training Model, Index: {_trainingParameters?.Index}, Target Duration: {_trainingParameters?.TargetDuration}");
-                var trainedModel = _trainingPipeline.Fit(_trainingData);
-                DateTime trainingCompleteTime = DateTime.Now;
-                int trainingMinutes = Convert.ToInt32(Math.Ceiling((trainingCompleteTime - _startTime).TotalMinutes));
-                _logger.LogInformation($"Trained Model in {trainingMinutes} minutes");
-
-                // Testing the model
-                _logger.LogInformation($"Testing Model:");
-                IDataView predictions = trainedModel.Transform(_testingData);
-                _metrics = _mlContext.Regression.Evaluate(predictions, labelColumnName: "Label", scoreColumnName: "Score");
-
-                int testingMinutes = Convert.ToInt32(Math.Ceiling((DateTime.Now - trainingCompleteTime).TotalMinutes));
-                _logger.LogInformation($"Completed Testing in {testingMinutes} minute(s):\n\tRoot Mean Squared Error: {_metrics.RootMeanSquaredError}\n\tAbsolute Error: {_metrics.MeanAbsoluteError}\n\tR Squared: {_metrics.RSquared}");
-
-                // Saving the model
-                saveModel();
-
-                _queueClient.DeleteMessage(poppedMessage.MessageId, poppedMessage.PopReceipt, stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Could not build model.");
-                throw;
-            }
-        }
-
-        private TrainModelMessage? decodeMessage(QueueMessage message)
-        {
-            if (message == null)
-            {
-                return null;
-            }
-
-            // Deserialize the message body to get the ReloadDays
-            string messageBody = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(message.Body?.ToString()));
-            if (string.IsNullOrWhiteSpace(messageBody))
-            {
-                return null;
-            }
-
-            _logger.LogInformation($"Received message: {messageBody}");
-            return JsonSerializer.Deserialize<TrainModelMessage>(messageBody);
-        }
-
-        private void saveModel()
+        private async Task saveModel()
         {
             string blobModelName = $"{_trainingParameters?.Index}-{_trainingParameters?.TargetDuration}-{_startTime.ToString(datetimeTagFormat)}.zip";
             _logger?.LogInformation($"Writing blob model: {blobModelName}");
 
-            BlobServiceClient blobServiceClient = blobServiceClient = new BlobServiceClient(storageConnectionString);
+            BlobServiceClient blobServiceClient = blobServiceClient = new BlobServiceClient(TrainModelsService.StorageConnectionString);
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(equityModelsContainer);
             containerClient.CreateIfNotExists();
 
@@ -227,10 +176,20 @@ namespace Visavi.Quantis.Modeling
 
             _logger.LogInformation("Saved Model, updating metadata");
             using var connection = new SqlConnection(dbConnectionString);
-            connection.Execute( "INSERT INTO EquityModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
-                                "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)", 
-                                new { Type = "Regression", _trainingParameters?.Index, TargetDuration = _trainingParameters?.TargetDuration * 12, Timestamp = _startTime, Path = blobModelName,
-                                        _metrics.MeanAbsoluteError, _metrics.RootMeanSquaredError, _metrics.LossFunction, _metrics.RSquared });
+            await connection.ExecuteAsync("INSERT INTO EquityModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
+                                    "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)",
+                                    new
+                                    {
+                                        Type = "Regression",
+                                        _trainingParameters?.Index,
+                                        TargetDuration = _trainingParameters?.TargetDuration * 12,
+                                        Timestamp = _startTime,
+                                        Path = blobModelName,
+                                        _metrics.MeanAbsoluteError,
+                                        _metrics.RootMeanSquaredError,
+                                        _metrics.LossFunction,
+                                        _metrics.RSquared
+                                    });
         }
 
         private IDataView buildDataLoader()
@@ -239,12 +198,6 @@ namespace Visavi.Quantis.Modeling
             var loader = _mlContext.Data.CreateDatabaseLoader<EquityModeling>();
             var dbSource = new DatabaseSource(SqlClientFactory.Instance, dbConnectionString, geTrainModelQuery(), timeoutInSeconds);
             return loader.Load(dbSource);
-        }
-
-        private enum Trainer
-        {
-
-
         }
 
         private IEstimator<ITransformer> loadTrainingPipeline()
