@@ -1,0 +1,44 @@
+﻿@page "/models/{modelId}"
+@using Visavi.Quantis.Modeling;
+@using Visavi.Quantis.Data;
+@using Quantis.Site;
+
+@inject HttpClient Http
+
+<PageTitle>Model: @ModelId</PageTitle>
+
+
+@if (Prediction == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <h1>Prediction</h1>
+    <table class="table-bordered">
+        <tbody>
+            <tr><td>Ticker:</td><td>@Prediction.Ticker</td></tr>
+            <tr><td>Stating Date:</td><td>@Prediction.StartingDate</td></tr>
+            <tr><td>Stating Price:</td><td>@Prediction.StartingPrice</td></tr>
+            <tr><td>Ending Date:</td><td>@Prediction.EndingDate</td></tr>
+            <tr><td>Predicted Price:</td><td>@Prediction.PredictedEndingPrice</td></tr>
+            <tr><td>Expected Low Price:</td><td>@Prediction.ExpectedPriceRangeLow</td></tr>
+            <tr><td>Expected High Price:</td><td>@Prediction.ExpectedPriceRangeHigh</td></tr>
+            <tr><td>Predicted CAGR:</td><td>@Prediction.PredictedCagr</td></tr>
+        </tbody>
+    </table>
+    <p>Cagr = @Prediction.ToString()</p>
+}
+
+@code {
+    [Parameter]
+    public int? ModelId { get; set; }
+
+    public Prediction Prediction { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        string ticker = "SPY";
+        Prediction = await Http.GetFromJsonAsync<Prediction>($"{QuantisEnvironment.Server}api/Predictions/{ModelId}?ticker={ticker}");
+    }
+}

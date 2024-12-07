@@ -1,6 +1,8 @@
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Visavi.Quantis;
+using Visavi.Quantis.Modeling;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication()
@@ -8,8 +10,8 @@ var host = new HostBuilder()
     {
         services.AddApplicationInsightsTelemetryWorkerService();
         services.ConfigureFunctionsApplicationInsights();
-        services.AddSingleton<Visavi.Quantis.Connections>();
-        services.AddSingleton<Visavi.Quantis.Modeling.ModelService>();
+        services.AddQuantisCoreServices();
+        services.AddScoped<ModelService>();
     })
     .Build();
 

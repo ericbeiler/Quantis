@@ -2,7 +2,7 @@
 
 namespace Visavi.Quantis.Data
 {
-    public class EquityModelingRecord
+    public class DailyEquityRecord
     {
         public required string Ticker { get; set; }
         public int SimFinId { get; set; }

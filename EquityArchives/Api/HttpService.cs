@@ -1,7 +1,5 @@
 using Azure;
-using Azure.Storage.Blobs;
 using Azure.Storage.Queues.Models;
-using Dapper;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -17,61 +15,99 @@ namespace Visavi.Quantis.Api
     public class HttpService
     {
         private readonly ILogger<HttpService> _logger;
-        private readonly Connections _connections;
         private readonly ModelService _modelService;
+        private readonly IDataServices _dataServices;
 
         // HTTP Requests
         private static readonly string reloadDaysParmName = "reloadDays";
         private const string quantisModelingQueue = "quantis-modeling";
 
-        public HttpService(ILogger<HttpService> logger, Connections connections, ModelService modelService)
+        public HttpService(ILogger<HttpService> logger, ModelService modelService, IDataServices dataServices)
         {
             _logger = logger;
-            _connections = connections;
             _modelService = modelService;
+            _dataServices = dataServices;
         }
 
         [Function("EquityModel")]
-        public async Task<IActionResult> HttpEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post", "get"])] HttpRequest req)
+        public async Task<IActionResult> HttpEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post", "get"], Route = "EquityModel/{id:int?}")] HttpRequest req, int? id)
         {
             switch (req.Method.ToLower())
             {
                 case "post":
                     req.Query.TryGetValue("equityIndex", out var equityIndex);
                     req.Query.TryGetValue("targetDuration", out var targetDuration);
-                    return await httpPostEquityModel(equityIndex, Convert.ToInt32(targetDuration));
+                    req.Query.TryGetValue("datasetSizeLimit", out var _datasetSizeLimit);
+                    string? datasetSizeLimit = _datasetSizeLimit.FirstOrDefault();
+                    return await httpPostEquityModel(equityIndex, Convert.ToInt32(targetDuration), datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null);
 
                 case "get":
-                    return await httpGetEquityModel();
+                    return await (id == null ? httpGetModelSummaryList() : httpGetModel(id.Value));
 
                 default:
                     return new BadRequestResult();
             }
         }
 
-        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int targetDuration)
+        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int targetDurationInMonths, int? datasetSizeLimit = null)
         {
+            if (!PredictionModel.IsValidDuration(targetDurationInMonths))
+            {
+                return new BadRequestObjectResult($"{targetDurationInMonths} is not a valid Target Duration. Try 12, 24, 36 or 60 instead.");
+            }
+
             _logger?.LogInformation("Queuing Training of Model.");
 
-            var receipt = await sendModelingMessage(new TrainModelMessage
-            {
-                Index = equityIndex,
-                TargetDuration = targetDuration
-            });
-            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Years): {targetDuration}";
+            var receipt = await sendModelingMessage(new TrainModelMessage(){
+                                                        TargetDurationInMonths = targetDurationInMonths,
+                                                        Index = equityIndex,
+                                                        DatasetSizeLimit = datasetSizeLimit});
+
+            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationInMonths}";
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
         }
 
-        private async Task<IActionResult> httpGetEquityModel()
+        [Function("Predictions")]
+        public async Task<IActionResult> Predictions([HttpTrigger(AuthorizationLevel.Anonymous, ["get"], Route = "Predictions/{modelId:int?}")] HttpRequest req, int? modelId, string ticker, DateTime? predictionDay = null)
         {
-            _logger?.LogInformation("Getting list of trained models.");
+            _logger?.LogInformation($"Prediction: modelId = {modelId}, ticker={ticker}");
+            if (modelId == null)
+            {
+                return new BadRequestObjectResult("A modelId must be specified to predict values");
+            }
 
-            var models = await _modelService.GetModelsAsync();
+            string[] tickers = ticker.Split(',');
+            var predictions = await _modelService.PredictAsync(modelId.Value, tickers);
+            var predictionsJson = JsonSerializer.Serialize(predictions);
+
+            _logger?.LogInformation(predictionsJson);
+            return new OkObjectResult(predictionsJson);
+        }
+
+        private async Task<IActionResult> httpGetModelSummaryList()
+        {
+            _logger?.LogInformation("Getting a list of all trained models.");
+
+            var models = await _dataServices.PredictionModels.GetModelSummaryListAsync();
             var resultText = JsonSerializer.Serialize(models);
 
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
+        }
+
+        private async Task<IActionResult> httpGetModel(int id)
+        {
+            /*
+            _logger?.LogInformation($"Getting inference model for id {id}");
+
+            var model = await _modelService.GetModelAsync(id);
+            var resultText = JsonSerializer.Serialize(model);
+
+            _logger?.LogInformation(resultText);
+            return new OkObjectResult(resultText);
+            */
+            throw new NotImplementedException();
         }
 
         [Function("LoadEquities")]
@@ -89,28 +125,6 @@ namespace Visavi.Quantis.Api
             return new OkObjectResult(resultText);
         }
 
-        private async Task<List<int>> getEquityIds(string? equityIndex = null)
-        {
-            List<int> simFinIds = new List<int>();
-            using var connection = _connections.DbConnection;
-            {
-                if (string.IsNullOrWhiteSpace(equityIndex))
-                {
-                    simFinIds = (await connection.QueryAsync<int>("SELECT DISTINCT SimFinId FROM EquityHistory")).ToList();
-                }
-                else
-                {
-                    simFinIds = (await connection.QueryAsync<int>("SELECT DISTINCT SimFinId FROM IndexEquities WHERE IndexTicker = @equityIndex", new { equityIndex })).ToList();
-                }
-            }
-            return simFinIds;
-        }
-
-        private async Task<DateTime> getEquitiesLastUpdate()
-        {
-            using var connection = _connections.DbConnection;
-            return (await connection.QueryAsync<DateTime>("Select Top 1 [Date] from EquityHistory order by [Date] desc")).FirstOrDefault();
-        }
 
         [Function("ExportTrainingData")]
         public async Task<IActionResult> HttpExportTrainingData([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
@@ -119,7 +133,7 @@ namespace Visavi.Quantis.Api
 
             req.Query.TryGetValue("equityIndex", out var equityIndex);
             req.Query.TryGetValue("minimumAge", out var minimumAge);
-            List<int> simFinIds = await getEquityIds(equityIndex);
+            List<int> simFinIds = await _dataServices.EquityArchives.GetEquityIds(equityIndex);
             string outputPath = string.Empty;
             DateTime? endDate = null;
             if (!string.IsNullOrWhiteSpace(equityIndex + minimumAge))
@@ -128,7 +142,7 @@ namespace Visavi.Quantis.Api
 
                 if (!string.IsNullOrWhiteSpace(minimumAge))
                 {
-                    var lastUpdate = await getEquitiesLastUpdate();
+                    var lastUpdate = await _dataServices.EquityArchives.GetLastUpdateAsync();
                     endDate = lastUpdate.AddYears(-Convert.ToInt32(minimumAge)) - TimeSpan.FromDays(7);
                 }
             }
@@ -173,7 +187,7 @@ namespace Visavi.Quantis.Api
 
         private async Task<Response<SendReceipt>> sendEquitiesQueueMessage(EquitiesQueueMessage message)
         {
-            var queueServiceClient = _connections.QueueConnection;
+            var queueServiceClient = _dataServices.QueueConnection;
             var queueClient = queueServiceClient.GetQueueClient(DataService.EquityQueueName);
             await queueClient.CreateIfNotExistsAsync();
 
@@ -183,7 +197,7 @@ namespace Visavi.Quantis.Api
 
         private async Task<Response<SendReceipt>> sendModelingMessage(TrainModelMessage message)
         {
-            var queueServiceClient = _connections.QueueConnection;
+            var queueServiceClient = _dataServices.QueueConnection;
             var queueClient = queueServiceClient.GetQueueClient(quantisModelingQueue);
             await queueClient.CreateIfNotExistsAsync();
 

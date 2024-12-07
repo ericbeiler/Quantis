@@ -8,10 +8,9 @@ namespace Visavi.Quantis.Data
 {
     internal class TrainingDataExport
     {
-        private readonly Connections _connections;
+        private readonly IDataServices _dataServices;
         private const string modelTrainingContainerName = "model-training";
         private static readonly string equitiesPrefix = "equities" + DataService.ContainerFolderSeperator;
-        private ILogger _logger => _connections.Logger;
 
 
         private const string selectStatementForEquitiesTraining =
@@ -21,9 +20,9 @@ namespace Visavi.Quantis.Data
                 WHERE SimFinId = @simFinId AND [Y1Cagr] IS NOT NULL AND [Date] < @endDate
                 ORDER BY [Date] DESC";
 
-        public TrainingDataExport(Connections connections)
+        public TrainingDataExport(IDataServices dataServices)
         {
-            _connections = connections;
+            _dataServices = dataServices;
         }
 
         internal async Task ExportTrainingDataAsync(int simFinId, DateTime? endDate = null, string? outputPath = null)
@@ -41,15 +40,15 @@ namespace Visavi.Quantis.Data
             }
 
 
-            using var dbConnection = _connections.DbConnection;
-            BlobServiceClient blobServiceClient = _connections.BlobConnection;
+            using var dbConnection = _dataServices.DbConnection;
+            BlobServiceClient blobServiceClient = _dataServices.BlobConnection;
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(modelTrainingContainerName);
             foreach (int simFinId in simFinIds)
             {
-                var equityData = await dbConnection.QueryAsync<EquityModelingRecord>(selectStatementForEquitiesTraining, new { simFinId, endDate});
+                var equityData = await dbConnection.QueryAsync<DailyEquityRecord>(selectStatementForEquitiesTraining, new { simFinId, endDate});
 
                 string equityFilename = $"{equitiesPrefix}{outputPath}equity-{simFinId}.csv";
-                _logger?.LogInformation($"Writing equity training data: {equityFilename}");
+                //_logger?.LogInformation($"Writing equity training data: {equityFilename}");
 
                 BlobClient equityTrainingBlobClient = containerClient.GetBlobClient(equityFilename);
                 using (var equityTrainingStream = equityTrainingBlobClient.OpenWrite(true))
@@ -61,7 +60,7 @@ namespace Visavi.Quantis.Data
                     equityTrainingStream.Flush();
                     equityTrainingStream.Close();
                 }
-                _logger?.LogInformation($"Completed writing {equityFilename}");
+                //_logger?.LogInformation($"Completed writing {equityFilename}");
             }
         }
     }

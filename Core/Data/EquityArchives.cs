@@ -1,58 +1,144 @@
-﻿using CsvHelper;
+﻿using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Microsoft.ML.Data;
 using System.Data;
-using System.Globalization;
 
 namespace Visavi.Quantis.Data
 {
-    internal class DerivedSharepriceFileLoader
+    internal class EquityArchives : IEquityArchives
     {
-        private const int batchSize = 5000;
+        private const int timeoutInSeconds = 3600;
         private const int MergeWarningThresholdMs = 8000;
-        private Connections _connections;
-        internal const string FileDelimiter = ";";
-        private ILogger _logger => _connections.Logger;
 
-        public DerivedSharepriceFileLoader(Connections connections)
+        private const decimal minMarketCap = 10000000;
+        private const decimal maxMarketCap = 10000000000000;
+
+        private const decimal minPriceToEarnings = -10000;
+        private const decimal maxPriceToEarnings = 10000;
+
+        private const decimal minPriceToBook = -1000;
+        private const decimal maxPriceToBook = 1000;
+
+        private const decimal minDividendYield = 0;
+        private const decimal maxDividendYield = 100;
+
+        private const decimal minAltmanZScore = 0;
+        private const decimal maxAltmanZScore = 100;
+
+        private const decimal minCagr = -100;
+        private const decimal maxCagr = 5000;
+
+        private const decimal minPriceToSales = -10000;
+        private const decimal maxPriceToSales = 10000;
+
+        private const decimal minPriceToCashFlow = -10000;
+        private const decimal maxPriceToCashFlow = 10000;
+
+        private readonly Connections _connections;
+        private readonly ILogger _logger;
+
+        public EquityArchives(Connections connections, ILogger logger)
         {
             _connections = connections;
+            _logger = logger;
         }
 
-        internal async Task<int> LoadRecords(Stream derivedSharePricesDailyStream)
+        public async Task<List<int>> GetEquityIds(string? equityIndex = null)
         {
-            var totalRecordCount = 0;
-            try
+            List<int> simFinIds = new List<int>();
+            using var connection = _connections.DbConnection;
             {
-                using var blobStreamReader = new StreamReader(derivedSharePricesDailyStream);
-                using var csv = new CsvReader(blobStreamReader, new CsvHelper.Configuration.CsvConfiguration(CultureInfo.InvariantCulture)
+                if (string.IsNullOrWhiteSpace(equityIndex))
                 {
-                    Delimiter = FileDelimiter
-                });
-
-                csv.Context.RegisterClassMap<DerivedSharepriceCsvToEquityRecordMap>();
-                var records = new List<EquityModelingRecord>();
-
-                foreach (var record in csv.GetRecords<EquityModelingRecord>())
-                {
-                    records.Add(record);
-                    if (records.Count() > batchSize)
-                    {
-                        await BulkMergeEquityProperties(records);
-                        totalRecordCount += records.Count();
-                        records = new List<EquityModelingRecord>();
-                    }
+                    simFinIds = (await connection.QueryAsync<int>("SELECT DISTINCT SimFinId FROM EquityHistory")).ToList();
                 }
-                return totalRecordCount;
+                else
+                {
+                    simFinIds = (await connection.QueryAsync<int>("SELECT DISTINCT SimFinId FROM IndexEquities WHERE IndexTicker = @equityIndex", new { equityIndex })).ToList();
+                }
             }
-            catch (Exception ex)
-            {
-                _logger?.LogError($"Error loading equity records after completing {totalRecordCount}: {ex}");
-                throw;
-            }
+            return simFinIds;
         }
 
+        public async Task<DailyEquityRecord> GetEquityRecordAsync(string ticker, DateTime? date = null)
+        {
+            using var connection = _connections.DbConnection;
+            return await connection.QueryFirstOrDefaultAsync<DailyEquityRecord>("SELECT TOP 1 * FROM EquityHistory WHERE Ticker = @ticker ORDER BY [Date] DESC", new { ticker });
+        }
 
-        private async Task BulkMergeEquityProperties(List<EquityModelingRecord> records)
+        public async Task<DateTime> GetLastUpdateAsync()
+        {
+            using var connection = _connections.DbConnection;
+            return (await connection.QueryAsync<DateTime>("Select Top 1 [Date] from EquityHistory order by [Date] desc")).FirstOrDefault();
+        }
+
+        public DatabaseSource GetTrainingDataQuerySource(string indexTicker, int targetDuration, int? datasetSizeLimit)
+        {
+            return new DatabaseSource(SqlClientFactory.Instance, _connections.DbConnectionString, getTrainModelQuery(indexTicker, targetDuration, datasetSizeLimit), timeoutInSeconds);
+        }
+
+        private string getTrainModelQuery(string indexTicker, int targetDurationInMonths, int? datasetSizeLimit = null)
+        {
+            int targetDuraionInYears = targetDurationInMonths / 12;
+
+            var indexFilter = "";
+            var sizeLimiter = datasetSizeLimit != null ? $"TOP {datasetSizeLimit}" : "";
+            if (!string.IsNullOrWhiteSpace(indexTicker))
+            {
+                indexFilter +=
+                    @$" AND SimFinId IN
+                    (
+                        SELECT SimFinId
+                        FROM IndexEquities
+                        WHERE IndexTicker = '{indexTicker}'
+                    )";
+            }
+
+            return $@"
+                        SELECT  {sizeLimiter} Ticker, 
+                                [Date], 
+                                CAST(MarketCap AS REAL) AS MarketCap,
+                                CAST(PriceToEarningsQuarterly AS REAL) AS PriceToEarningsQuarterly,
+                                CAST(PriceToEarningsTTM AS REAL) AS PriceToEarningsTTM,
+                                CAST(PriceToSalesQuarterly AS REAL) AS PriceToSalesQuarterly,
+                                CAST(PriceToSalesTTM AS REAL) AS PriceToSalesTTM,
+                                CAST(PriceToBookValue AS REAL) AS PriceToBookValue,
+                                CAST(PriceToFreeCashFlowQuarterly AS REAL) AS PriceToFreeCashFlowQuarterly,
+                                CAST(PriceToFreeCashFlowTTM AS REAL) AS PriceToFreeCashFlowTTM,
+                                CAST(EnterpriseValue AS REAL) AS EnterpriseValue,
+                                CAST(EnterpriseValueToEBITDA AS REAL) AS EnterpriseValueToEBITDA,
+                                CAST(EnterpriseValueToSales AS REAL) AS EnterpriseValueToSales,
+                                CAST(EnterpriseValueToFreeCashFlow AS REAL) AS EnterpriseValueToFreeCashFlow,
+                                CAST(BookToMarketValue AS REAL) AS BookToMarketValue,
+                                CAST(OperatingIncomeToEnterpriseValue AS REAL) AS OperatingIncomeToEnterpriseValue,
+                                CAST(AltmanZScore AS REAL) AS AltmanZScore,
+                                CAST(DividendYield AS REAL) AS DividendYield,
+                                CAST(PriceToEarningsAdjusted AS REAL) AS PriceToEarningsAdjusted,
+                                CAST(Y{targetDuraionInYears}Cagr AS REAL) AS Cagr
+                        FROM EquityHistory
+                        WHERE [Y{targetDuraionInYears}Cagr] IS NOT NULL AND [Y{targetDuraionInYears}Cagr] > {minCagr} AND [Y{targetDuraionInYears}Cagr] < {maxCagr}
+                                AND MarketCap IS NOT NULL AND MarketCap > {minMarketCap} AND MarketCap < {maxMarketCap}
+                                AND PriceToEarningsQuarterly IS NOT NULL AND PriceToEarningsQuarterly > {minPriceToEarnings} AND PriceToEarningsQuarterly < {maxPriceToEarnings}
+                                AND PriceToEarningsTTM IS NOT NULL AND PriceToEarningsTTM > {minPriceToEarnings} AND PriceToEarningsTTM < {maxPriceToEarnings}
+                                AND PriceToSalesQuarterly IS NOT NULL AND PriceToSalesQuarterly > {minPriceToSales} AND PriceToSalesQuarterly < {maxPriceToSales}
+                                AND PriceToSalesTTM IS NOT NULL AND PriceToSalesTTM > {minPriceToSales} AND PriceToSalesTTM < {maxPriceToSales}
+                                AND PriceToBookValue IS NOT NULL AND PriceToBookValue > {minPriceToBook} AND PriceToBookValue < {maxPriceToBook}
+                                AND PriceToFreeCashFlowQuarterly IS NOT NULL AND PriceToFreeCashFlowQuarterly > {minPriceToCashFlow} AND PriceToFreeCashFlowQuarterly < {maxPriceToCashFlow}
+                                AND PriceToFreeCashFlowTTM IS NOT NULL AND PriceToFreeCashFlowTTM > {minPriceToCashFlow} AND PriceToFreeCashFlowTTM < {maxPriceToCashFlow}
+                                AND EnterpriseValue IS NOT NULL AND EnterpriseValue > {minMarketCap} AND EnterpriseValue < {maxMarketCap}
+                                AND EnterpriseValueToEBITDA IS NOT NULL AND EnterpriseValueToEBITDA > {minPriceToEarnings}  AND EnterpriseValueToEBITDA < {maxPriceToEarnings}
+                                AND EnterpriseValueToSales IS NOT NULL AND EnterpriseValueToSales > {minPriceToSales} AND EnterpriseValueToSales < {maxPriceToSales}
+                                AND EnterpriseValueToFreeCashFlow IS NOT NULL AND EnterpriseValueToFreeCashFlow > {minPriceToCashFlow} AND EnterpriseValueToFreeCashFlow < {maxPriceToCashFlow}
+                                AND BookToMarketValue IS NOT NULL AND BookToMarketValue > {minPriceToBook} AND BookToMarketValue < {maxPriceToBook}
+                                AND OperatingIncomeToEnterpriseValue IS NOT NULL AND OperatingIncomeToEnterpriseValue > {minPriceToEarnings} AND OperatingIncomeToEnterpriseValue < {maxPriceToEarnings}
+                                AND AltmanZScore IS NOT NULL AND AltmanZScore > {minAltmanZScore} AND AltmanZScore < {maxAltmanZScore}
+                                AND DividendYield IS NOT NULL AND DividendYield >= {minDividendYield} AND DividendYield < {maxDividendYield}
+                                AND PriceToEarningsAdjusted IS NOT NULL AND PriceToEarningsAdjusted > {minPriceToEarnings} AND PriceToEarningsAdjusted < {maxPriceToEarnings}
+                                {indexFilter}";
+        }
+
+        public async Task BulkMergeAsync(List<DailyEquityRecord> records)
         {
             var start = DateTime.Now;
             var firstRecord = records?.FirstOrDefault();
@@ -87,7 +173,7 @@ namespace Visavi.Quantis.Data
             newRows.Columns.Add("DividendYield", typeof(float)).AllowDBNull = true;
             newRows.Columns.Add("PriceToEarningsAdjusted", typeof(float)).AllowDBNull = true;
 
-            foreach (var record in records ?? new List<EquityModelingRecord>())
+            foreach (var record in records ?? new List<DailyEquityRecord>())
             {
                 DataRow dataRow = newRows.NewRow();
                 dataRow["SimFinId"] = record.SimFinId;
@@ -192,7 +278,7 @@ namespace Visavi.Quantis.Data
             {
                 _logger?.LogDebug($"Completed transaction {transaction.GetHashCode()} ({firstRecord?.Ticker}) in {completionMs} ms.");
             }
-            _logger?.LogMetric("BulkMergeDurationMs", completionMs);
         }
+
     }
 }

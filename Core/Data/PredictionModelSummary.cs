@@ -1,9 +1,10 @@
 ﻿using System;
 
-namespace Visavi.Quantis.Modeling
+namespace Visavi.Quantis.Data
 {
-    public class TrainedModel
+    public class PredictionModelSummary
     {
+        public int? Id { get; set; }
         public string Type { get; set; }
         public string Index { get; set; }
         public int TargetDuration { get; set; }

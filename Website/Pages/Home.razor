@@ -1,0 +1,67 @@
+﻿@using Visavi.Quantis.Modeling;
+@using Visavi.Quantis.Data;
+
+@inject HttpClient Http
+@page "/"
+
+<PageTitle>Home</PageTitle>
+
+<h1>Quantis</h1>
+
+Welcome to Quantis, where we build models to help us invest.
+
+<h2>Model List</h2>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Timestamp</th>
+            <th>Type</th>
+            <th>Index</th>
+            <th>Target Duration</th>
+            <th>Mean Absolute Error</th>
+            <th>Root Mean Squaed Error</th>
+            <th>R Squared</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (equityModels == null)
+        {
+            <tr>
+                <td colspan="3">Loading...</td>
+            </tr>
+        }
+        else
+        {
+            @foreach (var model in equityModels)
+            {
+                <tr>
+                    <td><a href="/models/@model.Id/MSFT,META,UBER">@model.Timestamp</a></td>
+                    <td>@model.TargetDuration</td>
+                    <td>@model.MeanAbsoluteError.ToString("#.##")%</td>
+                    <td>@model.RootMeanSquaredError.ToString("#.##")%</td>
+                    <td>@model.RSquared.ToString("#.##")</td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@code {
+    private PredictionModelSummary[]? equityModels;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Console.WriteLine("Fetching Equity Data.");
+            equityModels = await Http.GetFromJsonAsync<PredictionModelSummary[]>($"{QuantisEnvironment.Server}api/EquityModel");
+            Console.WriteLine($"{equityModels}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+}
+

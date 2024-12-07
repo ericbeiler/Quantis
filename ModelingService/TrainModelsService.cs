@@ -1,18 +1,21 @@
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using System.Text.Json;
+using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling
 {
     public class TrainModelsService : BackgroundService
     {
         private readonly ILogger<TrainModelsService> _logger;
+        private readonly IDataServices _dataServices;
         private readonly QueueClient _queueClient = new QueueClient(StorageConnectionString, "quantis-modeling");
 
         internal const string StorageConnectionString = "BlobEndpoint=https://quantis.blob.core.windows.net/;QueueEndpoint=https://quantis.queue.core.windows.net/;FileEndpoint=https://quantis.file.core.windows.net/;TableEndpoint=https://quantis.table.core.windows.net/;SharedAccessSignature=sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-17T02:13:18Z&st=2024-11-16T18:13:18Z&spr=https&sig=iKRDTg8msgsX8pPrgbJo%2Fm2gZam8JxDrF%2B11PU2KsZU%3D";
 
-        public TrainModelsService(ILogger<TrainModelsService> logger)
+        public TrainModelsService(IDataServices dataServices, ILogger<TrainModelsService> logger)
         {
+            _dataServices = dataServices;
             _logger = logger;
         }
 
@@ -43,7 +46,7 @@ namespace Visavi.Quantis.Modeling
                     }
 
                     _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
-                    var trainingJob = new ModelTrainingJob(trainingParameters, _logger, cancellationToken);
+                    var trainingJob = new ModelTrainingJob(trainingParameters, _dataServices, _logger, cancellationToken);
                     await trainingJob.ExecuteAsync();
 
                     _logger.LogInformation($"Deleting message {poppedMessage?.MessageId}.");

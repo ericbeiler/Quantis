@@ -1,28 +1,69 @@
 ﻿using Microsoft.Extensions.Logging;
-using System;
-using Dapper;
+using Microsoft.ML;
 using Visavi.Quantis.Data;
-using System.Data.Common;
 
 namespace Visavi.Quantis.Modeling
 {
     public class ModelService
     {
-        private readonly ILogger<DataService> _logger;
-        private readonly Connections _connections;
-        private const string selectTrainedModels = "SELECT * FROM EquityModels";
+        private const int monthsPerYear = 12;
+        private readonly ILogger<ModelService> _logger;
+        private readonly IDataServices _dataServices;
 
-        public ModelService(ILogger<DataService> logger, Connections connections)
+        public ModelService(ILogger<ModelService> logger, IDataServices dataServices)
         {
             _logger = logger;
-            _connections = connections;
+            _dataServices = dataServices;
         }
 
-        internal async Task<IEnumerable<TrainedModel>> GetModelsAsync()
+        private decimal calculateEndingPrice(double startingPrice, double cagr, int durationInMonths)
         {
-            using var dbConnection = _connections.DbConnection;
-            return await dbConnection.QueryAsync<TrainedModel>(selectTrainedModels);
+            return Convert.ToDecimal(startingPrice * Math.Pow(1 + cagr / 100, durationInMonths / monthsPerYear));
         }
 
+        internal async Task<Prediction> PredictAsync(int modelId, string ticker, DateTime? predictionDay = null)
+        {
+            return (await PredictAsync(modelId, [ticker], predictionDay))[0];
+        }
+
+        internal async Task<Prediction[]> PredictAsync(int modelId, string[] tickers, DateTime? predictionDay = null)
+        {
+            try
+            {
+                MLContext mlContext = new MLContext();
+                var predictionModel = await _dataServices.PredictionModels.GetPredictionModelAsync(modelId);
+                ITransformer inferencingModel = mlContext.Model.Load(predictionModel.InferencingModel.ToStream(), out DataViewSchema predictionSchema);
+                var predictionEngine = mlContext.Model.CreatePredictionEngine<PredictionModelInput, PredictionModelOutput>(inferencingModel);
+
+                var predictions = new List<Prediction>();
+                foreach (string ticker in tickers)
+                {
+                    var equityRecord = await _dataServices.EquityArchives.GetEquityRecordAsync(ticker, predictionDay);
+                    var inputData = equityRecord.ToPredictionModelInput();
+                    var cagr = predictionEngine.Predict(inputData).PredictedCagr;
+                    var prediction = new Prediction()
+                    {
+                        Ticker = ticker,
+                        StartingDate = equityRecord.Date,
+                        StartingPrice = Convert.ToDecimal(equityRecord.Close),
+                        PredictedCagr = cagr,
+                        EndingDate = equityRecord.Date.AddMonths(predictionModel.TargetDuration),
+                        PredictedEndingPrice = calculateEndingPrice(equityRecord.Close, cagr, predictionModel.TargetDuration),
+                        ExpectedCagrRangeLow = Convert.ToSingle(cagr - predictionModel.RootMeanSquaredError),
+                        ExpectedPriceRangeLow = calculateEndingPrice(equityRecord.Close, cagr - predictionModel.RootMeanSquaredError, predictionModel.TargetDuration),
+                        ExpectedCagrRangeHigh = Convert.ToSingle(cagr + predictionModel.RootMeanSquaredError),
+                        ExpectedPriceRangeHigh = calculateEndingPrice(equityRecord.Close, cagr + predictionModel.RootMeanSquaredError, predictionModel.TargetDuration),
+                    };
+
+                    _logger.LogInformation($"Predicted CAGR for {ticker} is {prediction.PredictedCagr}");
+                }
+                return predictions.ToArray();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Could not predict through inference engine: {ex.Message}");
+                throw;
+            }
+        }
     }
 }

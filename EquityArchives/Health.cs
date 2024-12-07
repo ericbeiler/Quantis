@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 using System.Collections;
 using Visavi.Quantis.Data;
 
-namespace EquityArchives
+namespace Visavi.Quantis
 {
     public class Health
     {

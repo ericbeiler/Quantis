@@ -4,9 +4,9 @@ using System.Globalization;
 
 namespace Visavi.Quantis.Data
 {
-    public class DerivedSharepriceCsvToEquityRecordMap : ClassMap<EquityModelingRecord>
+    public class SimFinDerivedSharepriceCsvToEquityRecordMap : ClassMap<DailyEquityRecord>
     {
-        public DerivedSharepriceCsvToEquityRecordMap()
+        public SimFinDerivedSharepriceCsvToEquityRecordMap()
         {
             AutoMap(CultureInfo.InvariantCulture);
             Map(m => m.Ticker).Name("Ticker");

@@ -4,28 +4,28 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace Visavi.Quantis
+namespace Visavi.Quantis.Data
 {
-    public class Connections
+    internal class Connections
     {
-        private readonly ILogger<Connections> _logger;
+        private readonly ILogger _logger;
         private readonly string? _storageConnectionString;
         private readonly string? _dbConnectionString;
 
-        public Connections(ILogger<Connections> logger, IConfiguration configuration)
+        public Connections(ILogger logger, IConfiguration configuration)
         {
             _logger = logger;
 
             _storageConnectionString = configuration["QuantisStorageConnection"];
             if (string.IsNullOrEmpty(_storageConnectionString))
             {
-                _logger.LogError("QuantisStorageConnection value is missing.");
+                _logger.LogError("QuantisStorageConnection value is missing. Is the environment variable set?");
             }
 
             _dbConnectionString = configuration["QuantisDbConnection"];
             if (string.IsNullOrEmpty(_dbConnectionString))
             {
-                _logger.LogError("QuantisDbConnection value is missing.");
+                _logger.LogError("QuantisDbConnection value is missing. Is the environment variable set?");
             }
         }
 

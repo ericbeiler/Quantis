@@ -1,7 +1,6 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues.Models;
-using Dapper;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using System.Text;
@@ -14,7 +13,7 @@ namespace Visavi.Quantis.Data
     {
         internal const string ContainerFolderSeperator = "/";
         private readonly ILogger<DataService> _logger;
-        private readonly Connections _connections;
+        private readonly IDataServices _dataServices;
 
         // Queue Requests
         internal const string EquityQueueName = "quantis-equities";
@@ -31,22 +30,16 @@ namespace Visavi.Quantis.Data
         private static readonly List<string> _workingFileList = new List<string>();  // TODO: Scalable solution needed
         internal const string WorkingSetPrefix = "workingset";
 
-        public DataService(ILogger<DataService> logger, Connections connections)
+        public DataService(ILogger<DataService> logger, IDataServices dataServices)
         {
             _logger = logger;
-            _connections = connections;
-        }
-
-        private async Task<DateTime> getEquitiesLastUpdate()
-        {
-            using var connection = _connections.DbConnection;
-            return (await connection.QueryAsync<DateTime>("Select Top 1 [Date] from EquityHistory order by [Date] desc")).FirstOrDefault();
+            _dataServices = dataServices;
         }
 
         private async Task parseEquitiesFile(uint? reloadDays)
         {
             var startTime = DateTime.Now;
-            BlobServiceClient blobServiceClient = _connections.BlobConnection;
+            BlobServiceClient blobServiceClient = _dataServices.BlobConnection;
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(EquityArchivesContainerName);
             BlobClient blobClient = containerClient.GetBlobClient(usDerivedSharepricesDailySource);
             foreach (var blob in containerClient.GetBlobs())
@@ -65,7 +58,7 @@ namespace Visavi.Quantis.Data
             int workingCount = 1;
 
             // Determine the index of the Date column
-            var columns = columnHeaderLine.Split(DerivedSharepriceFileLoader.FileDelimiter);
+            var columns = columnHeaderLine.Split(SimFinDerivedSharepriceFileLoader.FileDelimiter);
             int dateColumnIndex = Array.IndexOf(columns, "Date");
             _logger?.LogInformation($" Days to Reload: {reloadDays}, Date Column Index {dateColumnIndex}");
 
@@ -80,12 +73,12 @@ namespace Visavi.Quantis.Data
                     string? line = await streamReader.ReadLineAsync();
                     try
                     {
-                        if (reloadDays != null && line?.Split(DerivedSharepriceFileLoader.FileDelimiter)[dateColumnIndex].Length > 0)
+                        if (reloadDays != null && line?.Split(SimFinDerivedSharepriceFileLoader.FileDelimiter)[dateColumnIndex].Length > 0)
                         {
-                            string dateString = line.Split(DerivedSharepriceFileLoader.FileDelimiter)[dateColumnIndex];
+                            string dateString = line.Split(SimFinDerivedSharepriceFileLoader.FileDelimiter)[dateColumnIndex];
                             if (!string.IsNullOrWhiteSpace(dateString))
                             {
-                                DateTime date = DateTime.Parse(line.Split(DerivedSharepriceFileLoader.FileDelimiter)[dateColumnIndex]);
+                                DateTime date = DateTime.Parse(line.Split(SimFinDerivedSharepriceFileLoader.FileDelimiter)[dateColumnIndex]);
                                 appendLine = (DateTime.Now - date).TotalDays <= reloadDays;
                             }
                         }
@@ -160,7 +153,7 @@ namespace Visavi.Quantis.Data
 
                     case ExportTrainingDataMessage:
 
-                        await new TrainingDataExport(_connections).ExportTrainingDataAsync(queueMessage.SimFinId.Value,
+                        await new TrainingDataExport(_dataServices).ExportTrainingDataAsync(queueMessage.SimFinId.Value,
                                                                                             queueMessage.EndDate.Value,
                                                                                             queueMessage.OutputPath);
                         break;
@@ -203,10 +196,10 @@ namespace Visavi.Quantis.Data
                 if (stream.Length > 0)
                 {
                     _logger?.LogInformation($"Received working file {name}");
-                    recordCount = await new DerivedSharepriceFileLoader(_connections).LoadRecords(stream);
+                    recordCount = await new SimFinDerivedSharepriceFileLoader(_dataServices, _logger).LoadRecords(stream);
 
                     _logger?.LogInformation($"Processed {name} in {(int)Math.Ceiling((DateTime.Now - startTime).TotalMilliseconds)} ms, Records Processed: {recordCount}\n  Removing {name}");
-                    BlobServiceClient blobServiceClient = _connections.BlobConnection;
+                    BlobServiceClient blobServiceClient = _dataServices.BlobConnection;
                     BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(EquityArchivesContainerName);
                     await containerClient.DeleteBlobIfExistsAsync("/" + WorkingSetPrefix + "/" + name);
                 }
@@ -233,7 +226,7 @@ namespace Visavi.Quantis.Data
 
         private async Task<Response<SendReceipt>> sendEquitiesQueueMessage(EquitiesQueueMessage message)
         {
-            var queueServiceClient = _connections.QueueConnection;
+            var queueServiceClient = _dataServices.QueueConnection;
             var queueClient = queueServiceClient.GetQueueClient(EquityQueueName);
             await queueClient.CreateIfNotExistsAsync();
 

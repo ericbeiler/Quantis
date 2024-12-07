@@ -10,13 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="Azure.Identity" Version="1.13.1" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.23.0" />
-    <PackageReference Include="Azure.Storage.Queues" Version="12.21.0" />
-    <PackageReference Include="Dapper" Version="2.1.35" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageReference Include="Microsoft.ML" Version="4.0.0" />
-    <PackageReference Include="Microsoft.ML.LightGbm" Version="4.0.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
   </ItemGroup>
 
