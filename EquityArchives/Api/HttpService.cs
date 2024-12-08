@@ -6,6 +6,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Visavi.Quantis.Data;
 using Visavi.Quantis.Modeling;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -79,7 +80,11 @@ namespace Visavi.Quantis.Api
 
             string[] tickers = ticker.Split(',');
             var predictions = await _modelService.PredictAsync(modelId.Value, tickers);
-            var predictionsJson = JsonSerializer.Serialize(predictions);
+            var options = new JsonSerializerOptions
+            {
+                NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
+            };
+            var predictionsJson = JsonSerializer.Serialize(predictions, options);
 
             _logger?.LogInformation(predictionsJson);
             return new OkObjectResult(predictionsJson);

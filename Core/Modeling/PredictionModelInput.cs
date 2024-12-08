@@ -47,7 +47,7 @@ namespace Visavi.Quantis.Modeling
                     BookToMarketValue = dailyEquityRecord.BookToMarketValue.Value,
                     OperatingIncomeToEnterpriseValue = dailyEquityRecord.OperatingIncomeToEnterpriseValue.Value,
                     AltmanZScore = dailyEquityRecord.AltmanZScore.Value,
-                    DividendYield = dailyEquityRecord.DividendYield.Value,
+                    DividendYield = dailyEquityRecord.DividendYield ?? 0,
                     PriceToEarningsAdjusted = dailyEquityRecord.PriceToEarningsAdjusted.Value
                 };
             }

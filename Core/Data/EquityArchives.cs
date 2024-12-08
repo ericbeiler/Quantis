@@ -61,6 +61,16 @@ namespace Visavi.Quantis.Data
             return simFinIds;
         }
 
+        public async Task<List<string>> GetEquityTickers(string equityIndex)
+        {
+            List<string> tickers = new List<string>();
+            using var connection = _connections.DbConnection;
+            {
+                tickers = (await connection.QueryAsync<string>("SELECT DISTINCT eh.Ticker FROM [IndexEquities] ie LEFT JOIN [EquityHistory] eh ON eh.SimFinId = ie.SimFinId WHERE ie.IndexTicker = @equityIndex", new { equityIndex }, commandTimeout: timeoutInSeconds)).ToList();
+            }
+            return tickers;
+        }
+
         public async Task<DailyEquityRecord> GetEquityRecordAsync(string ticker, DateTime? date = null)
         {
             using var connection = _connections.DbConnection;
@@ -278,6 +288,12 @@ namespace Visavi.Quantis.Data
             {
                 _logger?.LogDebug($"Completed transaction {transaction.GetHashCode()} ({firstRecord?.Ticker}) in {completionMs} ms.");
             }
+        }
+
+        public async Task<bool> IsIndexTicker(string ticker)
+        {
+            using var connection = _connections.DbConnection;
+            return (await connection.QueryAsync<int>("SELECT COUNT(*) FROM IndexEquities WHERE IndexTicker = @ticker", new { ticker })).FirstOrDefault() > 0;
         }
 
     }
