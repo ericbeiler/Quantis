@@ -5,11 +5,11 @@ VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "QuantisFunctions", "EquityArchives\QuantisFunctions.csproj", "{C923352C-ED96-4EC9-BAB2-520896900E2F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModelingService", "ModelingService\ModelingService.csproj", "{0BE1FC37-61A5-4D1D-B2F6-F7E92BC116CF}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ModelingService", "ModelingService\ModelingService.csproj", "{0BE1FC37-61A5-4D1D-B2F6-F7E92BC116CF}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\Core.csproj", "{B005C60C-26F7-467F-8988-898D0C719EB5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core", "Core\Core.csproj", "{B005C60C-26F7-467F-8988-898D0C719EB5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Website", "Website\Website.csproj", "{4A4245FD-E11F-4EEC-B4A7-E3CE61C4D4E4}"
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "QuantisSite", "QuantisSite\quantissite\QuantisSite.esproj", "{1F6A94AB-922A-4C54-AA87-2A7286ABEE06}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -29,10 +29,12 @@ Global
 		{B005C60C-26F7-467F-8988-898D0C719EB5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B005C60C-26F7-467F-8988-898D0C719EB5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B005C60C-26F7-467F-8988-898D0C719EB5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{4A4245FD-E11F-4EEC-B4A7-E3CE61C4D4E4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{4A4245FD-E11F-4EEC-B4A7-E3CE61C4D4E4}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{4A4245FD-E11F-4EEC-B4A7-E3CE61C4D4E4}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{4A4245FD-E11F-4EEC-B4A7-E3CE61C4D4E4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F6A94AB-922A-4C54-AA87-2A7286ABEE06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F6A94AB-922A-4C54-AA87-2A7286ABEE06}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F6A94AB-922A-4C54-AA87-2A7286ABEE06}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{1F6A94AB-922A-4C54-AA87-2A7286ABEE06}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F6A94AB-922A-4C54-AA87-2A7286ABEE06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F6A94AB-922A-4C54-AA87-2A7286ABEE06}.Release|Any CPU.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
