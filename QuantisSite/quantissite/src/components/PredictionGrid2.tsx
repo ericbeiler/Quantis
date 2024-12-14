@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { AgGridReact } from 'ag-grid-react'; // React Data Grid Component
+import { ColDef } from 'ag-grid-community'; // Column Definition Interface
 import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS required by the Data Grid
 import "ag-grid-community/styles/ag-theme-alpine.css"; // Optional Theme applied to the Data Grid
+import Prediction from "./Prediction";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
@@ -12,18 +14,19 @@ const PredictionGrid2 = () => {
     { Ticker: "Loading", model: "", StartingPrice: 0, EndingDate: false },
   ]);
 
+  const fieldName = (name: keyof Prediction) => name;
   
   // Column Definitions: Defines the columns to be displayed.
-  const [predictionColumns, setColDefs] = useState([
-    { field: 'Ticker', headerName: 'Ticker', width: 100 },
-    { field: 'StartingDate', headerName: 'Starting Date', width: 150 },
-    { field: 'StartingPrice', headerName: 'Starting Price', width: 150, },
-    { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
-    { field: 'PredictedEndingPrice', headerName: 'Predicted Price', width: 150 },
-    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150 },
-    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150 },
-    { field: 'PredictedCagr', headerName: 'Predicted CAGR', width: 150 },
-  ]);
+  const predictionColumns: ColDef[] = [
+    { field: fieldName('Ticker'), headerName: 'Ticker', width: 100 },
+    { field: fieldName('StartingDate'), headerName: 'Starting Date', width: 150 },
+    { field: fieldName('StartingPrice'), headerName: 'Starting Price', width: 150, },
+    { field: fieldName('EndingDate'), headerName: 'Ending Date', width: 150 },
+    { field: fieldName('PredictedEndingPrice'), headerName: 'Predicted Price', width: 150 },
+    { field: fieldName('ExpectedPriceRangeLow'), headerName: 'Expected Low Price', width: 150 },
+    { field: fieldName('ExpectedPriceRangeHigh'), headerName: 'Expected High Price', width: 150 },
+    { field: fieldName('PredictedCagr'), headerName: 'Predicted CAGR', width: 150 }
+  ];
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
