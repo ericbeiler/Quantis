@@ -17,33 +17,18 @@ const PredictionGrid2 = () => {
   const predictionColumns: ColDef<Prediction>[] = [
     { field: 'Ticker', headerName: 'Ticker', width: 100 },
     { field: 'StartingDate', headerName: 'Starting Date', width: 150 },
-    { field: 'StartingPrice', headerName: 'Starting Price', width: 150, },
+    { field: 'StartingPrice', headerName: 'Starting Price', width: 150, valueFormatter: params => params?.data?.StartingPrice?.toFixed(2) },
     { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
-    { field: 'PredictedEndingPrice', headerName: 'Predicted Price', width: 150 },
-    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150 },
-    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150 },
-    { field: 'PredictedCagr', headerName: 'Predicted CAGR', width: 150 }
+    { field: 'PredictedEndingPrice', headerName: 'Predicted Price', width: 150, valueFormatter: params => params?.data?.PredictedEndingPrice?.toFixed(2) },
+    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => params?.data?.ExpectedPriceRangeLow?.toFixed(2) },
+    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => params?.data?.ExpectedPriceRangeHigh?.toFixed(2) },
+    { field: 'PredictedCagr', headerName: 'Predicted CAGR', width: 150, valueFormatter: params => params?.data?.PredictedCagr?.toFixed(2) }
   ];
   const [loading, setLoading] = useState(true);
-
-  const loadingPrediction: Prediction[] = [
-    {
-      Ticker: 'Loading...',
-      StartingDate: '',
-      StartingPrice: '',
-      EndingDate: '',
-      PredictedEndingPrice: '',
-      ExpectedPriceRangeLow: '',
-      ExpectedPriceRangeHigh: '',
-      PredictedCagr: ''
-    }
-  ]
 
   useEffect(() => {
     const fetchPredictions = async () => {
       try {
-        setRowData(loadingPrediction)
-
         // Fetch the data from the API
         const response = await fetch(`${serverUrl}api/Predictions/8?ticker=SPY`);
         const predictionArray = await response.json();
