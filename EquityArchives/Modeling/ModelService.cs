@@ -16,16 +16,21 @@ namespace Visavi.Quantis.Modeling
             _dataServices = dataServices;
         }
 
-        private decimal calculateEndingPrice(double startingPrice, double cagr, int durationInMonths)
+        private decimal? calculateEndingPrice(double? startingPrice, double? cagr, int? durationInMonths)
         {
             try
             {
-                return Convert.ToDecimal(startingPrice * Math.Pow(1 + cagr / 100, durationInMonths / monthsPerYear));
+                if (startingPrice == null || cagr == null || durationInMonths == null)
+                {
+                    _logger.LogWarning($"Unable to calculate the ending price due to a null value in starting price {startingPrice}, cagr {cagr} or durationInMonths {durationInMonths}");
+                    return null;
+                }
+                return Convert.ToDecimal(startingPrice * Math.Pow(1 + cagr.Value / 100, durationInMonths.Value / monthsPerYear));
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, $"Unable to calculate the ending price for starting price {startingPrice}, cagr {cagr}, durationInMonths {durationInMonths}");
-                return decimal.MinusOne;
+                return null;
             }
         }
 
@@ -52,7 +57,7 @@ namespace Visavi.Quantis.Modeling
                 foreach (string ticker in _tickers)
                 {
                     DailyEquityRecord? equityRecord = new() { Ticker = ticker };
-                    float cagr = float.NaN;
+                    float? cagr = null;
                     try
                     {
                         equityRecord = await _dataServices.EquityArchives.GetEquityRecordAsync(ticker, predictionDay);
@@ -67,15 +72,15 @@ namespace Visavi.Quantis.Modeling
                     predictions.Add(new Prediction()
                     {
                         Ticker = ticker,
-                        StartingDate = equityRecord?.Date ?? DateTime.MinValue,
+                        StartingDate = equityRecord?.Date.ToDateOnly() ?? DateOnly.MinValue,
                         StartingPrice = Convert.ToDecimal(equityRecord?.Close),
                         PredictedCagr = cagr,
-                        EndingDate = equityRecord != null ? equityRecord.Date.AddMonths(predictionModel.TargetDuration) : DateTime.MinValue,
-                        PredictedEndingPrice = calculateEndingPrice(equityRecord.Close, cagr, predictionModel.TargetDuration),
-                        ExpectedCagrRangeLow = Convert.ToSingle(cagr - predictionModel.RootMeanSquaredError),
-                        ExpectedPriceRangeLow = calculateEndingPrice(equityRecord.Close, cagr - predictionModel.RootMeanSquaredError, predictionModel.TargetDuration),
-                        ExpectedCagrRangeHigh = Convert.ToSingle(cagr + predictionModel.RootMeanSquaredError),
-                        ExpectedPriceRangeHigh = calculateEndingPrice(equityRecord.Close, cagr + predictionModel.RootMeanSquaredError, predictionModel.TargetDuration),
+                        EndingDate = equityRecord != null ? equityRecord.Date.AddMonths(predictionModel.TargetDuration).ToDateOnly() : DateOnly.MinValue,
+                        PredictedEndingPrice = calculateEndingPrice(equityRecord?.Close, cagr, predictionModel.TargetDuration),
+                        ExpectedCagrRangeLow = cagr != null ? Convert.ToSingle(cagr - predictionModel.RootMeanSquaredError) : null,
+                        ExpectedPriceRangeLow = calculateEndingPrice(equityRecord?.Close, cagr - predictionModel.RootMeanSquaredError, predictionModel.TargetDuration),
+                        ExpectedCagrRangeHigh = cagr != null ? Convert.ToSingle(cagr + predictionModel.RootMeanSquaredError) : null,
+                        ExpectedPriceRangeHigh = calculateEndingPrice(equityRecord?.Close, cagr + predictionModel.RootMeanSquaredError, predictionModel.TargetDuration),
                     });
 
                     _logger.LogInformation($"Predicted CAGR for {ticker} is {cagr}");

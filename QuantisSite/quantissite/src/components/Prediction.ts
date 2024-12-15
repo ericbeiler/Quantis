@@ -1,12 +1,12 @@
 interface Prediction {
   Ticker: string;
   StartingDate: string;
-  StartingPrice: string;
+  StartingPrice: number;
   EndingDate: string;
-  PredictedEndingPrice: string;
-  ExpectedPriceRangeLow: string;
-  ExpectedPriceRangeHigh: string;
-  PredictedCagr: string
+  PredictedEndingPrice: number | null;
+  ExpectedPriceRangeLow: number | null;
+  ExpectedPriceRangeHigh: number | null;
+  PredictedCagr: number | null;
 }
 
 export default Prediction;

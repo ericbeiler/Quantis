@@ -4,12 +4,8 @@ import { ColDef } from 'ag-grid-community'; // Column Definition Interface
 import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS required by the Data Grid
 import "ag-grid-community/styles/ag-theme-alpine.css"; // Optional Theme applied to the Data Grid
 
-// import { ClientSideRowModelModule } from '@ag-grid-community/client-side-row-model';
-// import { ModuleRegistry } from 'ag-grid-community';
-
 import Prediction from "./Prediction";
 
-// ModuleRegistry.registerModules([ ClientSideRowModelModule ]);
 const serverUrl = import.meta.env.VITE_SERVER;
 
 const PredictionGrid2 = () => {

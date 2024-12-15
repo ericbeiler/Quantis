@@ -78,6 +78,11 @@ namespace Visavi.Quantis.Api
                 return new BadRequestObjectResult("A modelId must be specified to predict values");
             }
 
+            if (ticker == null)
+            {
+                return new BadRequestObjectResult("A valid ticker (e.g. ?ticker=SPY ) must be specified to predict values");
+            }
+
             string[] tickers = ticker.Split(',');
             var predictions = await _modelService.PredictAsync(modelId.Value, tickers);
             var options = new JsonSerializerOptions
