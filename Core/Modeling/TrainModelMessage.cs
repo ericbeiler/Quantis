@@ -8,30 +8,33 @@ namespace Visavi.Quantis.Modeling
         private const int TwoYears = 24;
         private const int ThreeYears = 36;
         private const int FiveYears = 60;
+        public static readonly int[] ValidDurations = { OneYear, TwoYears, ThreeYears, FiveYears };
+        public static readonly int[] DefaultDurations = ValidDurations;
 
-        private int _targetDurationInMonths = ThreeYears;
+        private int[]? _targetDurationsInMonths = {};
 
         public string Message = "Train Model";
-        public int TargetDurationInMonths
+
+        public int? CompositeModelId { get; set; }
+        public int[]? TargetDurationsInMonths
         {
             get
             {
-                return _targetDurationInMonths;
+                return _targetDurationsInMonths;
             }
             set
             {
-                if (PredictionModel.IsValidDuration(value))
-                {
-                    _targetDurationInMonths = value;
-                }
-                else
+                if (value != null && value.Any(duration => !PredictionModel.IsValidDuration(duration)))
                 {
                     throw new ArgumentException($"{value} is not a valid Target Duration. Try 12, 24, 36, or 60.");
                 }
+                _targetDurationsInMonths = value;
             }
         }
 
         public string? Index { get; set; }
         public int? DatasetSizeLimit { get; set; }
+        public TrainingAlgorithm? Algorithm { get; set; }
+        public TimeSpan? MaxTrainingTime { get; set; }
     }
 }

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Transactions;
 using Visavi.Quantis.Data;
 using Visavi.Quantis.Modeling;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -37,10 +38,27 @@ namespace Visavi.Quantis.Api
             {
                 case "post":
                     req.Query.TryGetValue("equityIndex", out var equityIndex);
-                    req.Query.TryGetValue("targetDuration", out var targetDuration);
+                    req.Query.TryGetValue("targetDurations", out var targetDurations);
                     req.Query.TryGetValue("datasetSizeLimit", out var _datasetSizeLimit);
+                    req.Query.TryGetValue("algorithm", out var _algorithm);
                     string? datasetSizeLimit = _datasetSizeLimit.FirstOrDefault();
-                    return await httpPostEquityModel(equityIndex, Convert.ToInt32(targetDuration), datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null);
+                    string? algorithm = _algorithm.FirstOrDefault();
+                    int[]? targetDurationsInMonths = targetDurations.FirstOrDefault()?.Split(',')?.Select(stringVal => Convert.ToInt32(stringVal))?.ToArray();
+
+                    TrainingAlgorithm? trainingAlgorithm = null;
+                    if (!string.IsNullOrEmpty(algorithm))
+                    {
+                        try
+                        {
+                            trainingAlgorithm = Enum.Parse<TrainingAlgorithm>(algorithm, true);
+                        }
+                        catch (Exception ex)
+                        {
+                            return new BadRequestObjectResult($"{algorithm} is not a valid algorithm. Try FastTree or Auto instead.");
+                        };
+                    }
+
+                    return await httpPostEquityModel(equityIndex, targetDurationsInMonths, datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null, trainingAlgorithm);
 
                 case "get":
                     return await (id == null ? httpGetModelSummaryList() : httpGetModel(id.Value));
@@ -50,21 +68,22 @@ namespace Visavi.Quantis.Api
             }
         }
 
-        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int targetDurationInMonths, int? datasetSizeLimit = null)
+        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int[]? targetDurationsInMonths, int? datasetSizeLimit = null, TrainingAlgorithm? algorithm = null)
         {
-            if (!PredictionModel.IsValidDuration(targetDurationInMonths))
+            if (targetDurationsInMonths != null && targetDurationsInMonths.Any(duration => !PredictionModel.IsValidDuration(duration)))
             {
-                return new BadRequestObjectResult($"{targetDurationInMonths} is not a valid Target Duration. Try 12, 24, 36 or 60 instead.");
+                return new BadRequestObjectResult($"{targetDurationsInMonths} is not a valid Target Duration. Try 12, 24, 36 or 60 instead.");
             }
 
             _logger?.LogInformation("Queuing Training of Model.");
 
             var receipt = await sendModelingMessage(new TrainModelMessage(){
-                                                        TargetDurationInMonths = targetDurationInMonths,
+                                                        TargetDurationsInMonths = targetDurationsInMonths,
                                                         Index = equityIndex,
-                                                        DatasetSizeLimit = datasetSizeLimit});
+                                                        DatasetSizeLimit = datasetSizeLimit,
+                                                        Algorithm = algorithm });
 
-            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationInMonths}";
+            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}";
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
         }
@@ -205,14 +224,17 @@ namespace Visavi.Quantis.Api
             return await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
         }
 
-        private async Task<Response<SendReceipt>> sendModelingMessage(TrainModelMessage message)
+        private async Task<int> sendModelingMessage(TrainModelMessage message)
         {
+            message.CompositeModelId = await _dataServices.PredictionModels.CreateConglomerateModel(message);
+
             var queueServiceClient = _dataServices.QueueConnection;
             var queueClient = queueServiceClient.GetQueueClient(quantisModelingQueue);
             await queueClient.CreateIfNotExistsAsync();
 
             string jsonMessage = JsonSerializer.Serialize(message);
-            return await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
+            var sendReceipt =  await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
+            return message?.CompositeModelId ?? 0;
         }
     }
 }

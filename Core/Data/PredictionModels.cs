@@ -1,6 +1,8 @@
 ﻿using Azure.Storage.Blobs;
 using Dapper;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
+using Visavi.Quantis.Modeling;
 
 namespace Visavi.Quantis.Data
 {
@@ -16,6 +18,13 @@ namespace Visavi.Quantis.Data
         {
             _logger = logger;
             _connections = connections;
+        }
+
+        public async Task<int> CreateConglomerateModel(TrainModelMessage trainingParameters)
+        {
+            using var dbConnection = _connections.DbConnection;
+            var jsonTrainingParameters = JsonSerializer.Serialize(trainingParameters);
+            return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Parameters]) Values (@jsonTrainingParameters); SELECT SCOPE_IDENTITY()", new { jsonTrainingParameters });
         }
 
         public async Task<IEnumerable<PredictionModelSummary>> GetModelSummaryListAsync()
@@ -40,7 +49,7 @@ namespace Visavi.Quantis.Data
             return new PredictionModel(modelSummary, inferencingModel);
         }
 
-        public async Task SaveModel(string modelName, ITrainedPredictionModel trainedModel)
+        public async Task SaveModel(string modelName, RegressionModel regressionModel)
         {
             string blobModelName = $"{modelName}.zip";
             _logger?.LogInformation($"Writing blob model: {blobModelName}");
@@ -52,26 +61,27 @@ namespace Visavi.Quantis.Data
             BlobClient modelBlobClient = containerClient.GetBlobClient(blobModelName);
             using (var modelBlobStream = modelBlobClient.OpenWrite(true))
             {
-                trainedModel.MLContext.Model.Save(trainedModel.Transformer, trainedModel.TrainingSchema, modelBlobStream);
+                regressionModel.Save(modelBlobStream);
                 modelBlobStream.Flush();
                 modelBlobStream.Close();
             }
 
-            _logger.LogInformation("Saved Model, updating metadata");
+            _logger?.LogInformation("Saved Model, updating metadata");
             using var connection = _connections.DbConnection;
-            await connection.ExecuteAsync("INSERT INTO EquityModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
-                                    "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)",
+            await connection.ExecuteAsync("INSERT INTO EquityModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
+                                    "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @CompositeId, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)",
                                     new
                                     {
                                         Type = "Regression",
-                                        Index = trainedModel.TickerIndex,
-                                        trainedModel.TargetDuration,
-                                        trainedModel.Timestamp,
+                                        Index = regressionModel.IndexTicker,
+                                        TargetDuration = regressionModel.TargetDurationInMonths,
+                                        Timestamp = regressionModel.Timestamp,
                                         Path = blobModelName,
-                                        trainedModel.Metrics.MeanAbsoluteError,
-                                        trainedModel.Metrics.RootMeanSquaredError,
-                                        trainedModel.Metrics.LossFunction,
-                                        trainedModel.Metrics.RSquared
+                                        CompositeId = regressionModel.CompositeId,
+                                        MeanAbsoluteError = regressionModel?.Metrics?.MeanAbsoluteError,
+                                        RootMeanSquaredError = regressionModel?.Metrics?.RootMeanSquaredError,
+                                        LossFunction = regressionModel?.Metrics?.LossFunction,
+                                        RSquared = regressionModel?.Metrics?.RSquared
                                     });
         }
     }
