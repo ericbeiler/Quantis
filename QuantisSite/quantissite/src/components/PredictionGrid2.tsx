@@ -10,6 +10,10 @@ const serverUrl = import.meta.env.VITE_SERVER;
 
 const PredictionGrid2 = () => {
 
+  // Formatter function: Formats a numeric value to 2 decimal places or returns a default string.
+  const formatToPrice = (value?: number | null, defaultValue: string = 'N/A') =>
+    value !== undefined && value !== null ? value.toFixed(2) : defaultValue;
+
   // Row Data: The data to be displayed.
   const [predictions, setRowData] = useState<Prediction[]>([]);
   
@@ -17,12 +21,12 @@ const PredictionGrid2 = () => {
   const predictionColumns: ColDef<Prediction>[] = [
     { field: 'Ticker', headerName: 'Ticker', width: 100 },
     { field: 'StartingDate', headerName: 'Starting Date', width: 150 },
-    { field: 'StartingPrice', headerName: 'Starting Price', width: 150, valueFormatter: params => params?.data?.StartingPrice?.toFixed(2) },
+    { field: 'StartingPrice', headerName: 'Starting Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.StartingPrice) },
     { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
-    { field: 'PredictedEndingPrice', headerName: 'Predicted Price', width: 150, valueFormatter: params => params?.data?.PredictedEndingPrice?.toFixed(2) },
-    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => params?.data?.ExpectedPriceRangeLow?.toFixed(2) },
-    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => params?.data?.ExpectedPriceRangeHigh?.toFixed(2) },
-    { field: 'PredictedCagr', headerName: 'Predicted CAGR', width: 150, valueFormatter: params => params?.data?.PredictedCagr?.toFixed(2) }
+    { field: 'PredictedEndingPrice', headerName: 'Predicted Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.PredictedEndingPrice) },
+    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeLow) },
+    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeHigh) },
+    { field: 'PredictedCagr', headerName: 'Predicted CAGR', width: 150, valueFormatter: params => formatToPrice(params?.data?.PredictedCagr) }
   ];
   const [loading, setLoading] = useState(true);
 
