@@ -14,26 +14,26 @@ namespace Visavi.Quantis.Data
         private const decimal minMarketCap = 10000000;
         private const decimal maxMarketCap = 10000000000000;
 
-        private const decimal minPriceToEarnings = -10000;
-        private const decimal maxPriceToEarnings = 10000;
+        public const decimal MinPriceToEarnings = -100000;
+        public const decimal MaxPriceToEarnings = 100000;
 
         private const decimal minPriceToBook = -1000;
         private const decimal maxPriceToBook = 1000;
 
-        private const decimal minDividendYield = 0;
+        public const decimal MinDividendYield = 0;
         private const decimal maxDividendYield = 100;
 
-        private const decimal minAltmanZScore = 0;
-        private const decimal maxAltmanZScore = 100;
+        public const decimal MinAltmanZScore = -100000;
+        public const decimal MaxAltmanZScore = 100000;
 
         private const decimal minCagr = -100;
         private const decimal maxCagr = 5000;
 
-        private const decimal minPriceToSales = -10000;
-        private const decimal maxPriceToSales = 10000;
+        public const decimal MinPriceToSales = -100000;
+        public const decimal MaxPriceToSales = 100000;
 
-        private const decimal minPriceToCashFlow = -10000;
-        private const decimal maxPriceToCashFlow = 10000;
+        public const decimal MinPriceToCashFlow = -100000;
+        public const decimal MaxPriceToCashFlow = 100000;
 
         private readonly Connections _connections;
         private readonly ILogger _logger;
@@ -75,6 +75,12 @@ namespace Visavi.Quantis.Data
         {
             using var connection = _connections.DbConnection;
             return await connection.QueryFirstOrDefaultAsync<DailyEquityRecord>("SELECT TOP 1 * FROM EquityHistory WHERE Ticker = @ticker ORDER BY [Date] DESC", new { ticker });
+        }
+
+        public async Task<Index[]> GetIndeces()
+        {
+            using var connection = _connections.DbConnection;
+            return (await connection.QueryAsync<Index>("SELECT Ticker, Name FROM Indexes")).ToArray();
         }
 
         public async Task<DateTime> GetLastUpdateAsync()
@@ -129,22 +135,22 @@ namespace Visavi.Quantis.Data
                         FROM EquityHistory
                         WHERE [Y{targetDuraionInYears}Cagr] IS NOT NULL AND [Y{targetDuraionInYears}Cagr] > {minCagr} AND [Y{targetDuraionInYears}Cagr] < {maxCagr}
                                 AND MarketCap IS NOT NULL AND MarketCap > {minMarketCap} AND MarketCap < {maxMarketCap}
-                                AND PriceToEarningsQuarterly IS NOT NULL AND PriceToEarningsQuarterly > {minPriceToEarnings} AND PriceToEarningsQuarterly < {maxPriceToEarnings}
-                                AND PriceToEarningsTTM IS NOT NULL AND PriceToEarningsTTM > {minPriceToEarnings} AND PriceToEarningsTTM < {maxPriceToEarnings}
-                                AND PriceToSalesQuarterly IS NOT NULL AND PriceToSalesQuarterly > {minPriceToSales} AND PriceToSalesQuarterly < {maxPriceToSales}
-                                AND PriceToSalesTTM IS NOT NULL AND PriceToSalesTTM > {minPriceToSales} AND PriceToSalesTTM < {maxPriceToSales}
+                                AND PriceToEarningsQuarterly IS NOT NULL AND PriceToEarningsQuarterly > {MinPriceToEarnings} AND PriceToEarningsQuarterly < {MaxPriceToEarnings}
+                                AND PriceToEarningsTTM IS NOT NULL AND PriceToEarningsTTM > {MinPriceToEarnings} AND PriceToEarningsTTM < {MaxPriceToEarnings}
+                                AND PriceToSalesQuarterly IS NOT NULL AND PriceToSalesQuarterly > {MinPriceToSales} AND PriceToSalesQuarterly < {MaxPriceToSales}
+                                AND PriceToSalesTTM IS NOT NULL AND PriceToSalesTTM > {MinPriceToSales} AND PriceToSalesTTM < {MaxPriceToSales}
                                 AND PriceToBookValue IS NOT NULL AND PriceToBookValue > {minPriceToBook} AND PriceToBookValue < {maxPriceToBook}
-                                AND PriceToFreeCashFlowQuarterly IS NOT NULL AND PriceToFreeCashFlowQuarterly > {minPriceToCashFlow} AND PriceToFreeCashFlowQuarterly < {maxPriceToCashFlow}
-                                AND PriceToFreeCashFlowTTM IS NOT NULL AND PriceToFreeCashFlowTTM > {minPriceToCashFlow} AND PriceToFreeCashFlowTTM < {maxPriceToCashFlow}
+                                AND PriceToFreeCashFlowQuarterly IS NOT NULL AND PriceToFreeCashFlowQuarterly > {MinPriceToCashFlow} AND PriceToFreeCashFlowQuarterly < {MaxPriceToCashFlow}
+                                AND PriceToFreeCashFlowTTM IS NOT NULL AND PriceToFreeCashFlowTTM > {MinPriceToCashFlow} AND PriceToFreeCashFlowTTM < {MaxPriceToCashFlow}
                                 AND EnterpriseValue IS NOT NULL AND EnterpriseValue > {minMarketCap} AND EnterpriseValue < {maxMarketCap}
-                                AND EnterpriseValueToEBITDA IS NOT NULL AND EnterpriseValueToEBITDA > {minPriceToEarnings}  AND EnterpriseValueToEBITDA < {maxPriceToEarnings}
-                                AND EnterpriseValueToSales IS NOT NULL AND EnterpriseValueToSales > {minPriceToSales} AND EnterpriseValueToSales < {maxPriceToSales}
-                                AND EnterpriseValueToFreeCashFlow IS NOT NULL AND EnterpriseValueToFreeCashFlow > {minPriceToCashFlow} AND EnterpriseValueToFreeCashFlow < {maxPriceToCashFlow}
+                                AND EnterpriseValueToEBITDA IS NOT NULL AND EnterpriseValueToEBITDA > {MinPriceToEarnings}  AND EnterpriseValueToEBITDA < {MaxPriceToEarnings}
+                                AND EnterpriseValueToSales IS NOT NULL AND EnterpriseValueToSales > {MinPriceToSales} AND EnterpriseValueToSales < {MaxPriceToSales}
+                                AND EnterpriseValueToFreeCashFlow IS NOT NULL AND EnterpriseValueToFreeCashFlow > {MinPriceToCashFlow} AND EnterpriseValueToFreeCashFlow < {MaxPriceToCashFlow}
                                 AND BookToMarketValue IS NOT NULL AND BookToMarketValue > {minPriceToBook} AND BookToMarketValue < {maxPriceToBook}
-                                AND OperatingIncomeToEnterpriseValue IS NOT NULL AND OperatingIncomeToEnterpriseValue > {minPriceToEarnings} AND OperatingIncomeToEnterpriseValue < {maxPriceToEarnings}
-                                AND AltmanZScore IS NOT NULL AND AltmanZScore > {minAltmanZScore} AND AltmanZScore < {maxAltmanZScore}
-                                AND DividendYield IS NOT NULL AND DividendYield >= {minDividendYield} AND DividendYield < {maxDividendYield}
-                                AND PriceToEarningsAdjusted IS NOT NULL AND PriceToEarningsAdjusted > {minPriceToEarnings} AND PriceToEarningsAdjusted < {maxPriceToEarnings}
+                                AND OperatingIncomeToEnterpriseValue IS NOT NULL AND OperatingIncomeToEnterpriseValue > {MinPriceToEarnings} AND OperatingIncomeToEnterpriseValue < {MaxPriceToEarnings}
+                                AND AltmanZScore IS NOT NULL AND AltmanZScore > {MinAltmanZScore} AND AltmanZScore < {MaxAltmanZScore}
+                                AND DividendYield IS NOT NULL AND DividendYield >= {MinDividendYield} AND DividendYield < {maxDividendYield}
+                                AND PriceToEarningsAdjusted IS NOT NULL AND PriceToEarningsAdjusted > {MinPriceToEarnings} AND PriceToEarningsAdjusted < {MaxPriceToEarnings}
                                 {indexFilter}";
         }
 

@@ -1,9 +1,10 @@
 ﻿namespace Visavi.Quantis.Modeling
 {
-    public class Prediction
+    public class PricePointPrediction
     {
-        public Prediction() { }
+        public PricePointPrediction() { }
         public string Ticker { get; set; }
+        public int ProjectionPeriodInMonths { get; set; }
         public DateOnly StartingDate { get; set; }
         public decimal StartingPrice { get; set; }
         public DateOnly EndingDate { get; set; }

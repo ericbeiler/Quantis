@@ -16,6 +16,7 @@ namespace Visavi.Quantis.Data
         QueueServiceClient QueueConnection { get; }
 
         // Repositories
+        ICacheService Cache { get; }
         IEquityArchives EquityArchives { get; }
         IPredictionModels PredictionModels { get; }
     }

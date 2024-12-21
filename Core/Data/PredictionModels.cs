@@ -20,20 +20,36 @@ namespace Visavi.Quantis.Data
             _connections = connections;
         }
 
-        public async Task<int> CreateConglomerateModel(TrainModelMessage trainingParameters)
+        public async Task<int> CreateCompositeModel(TrainModelMessage trainingParameters)
         {
             using var dbConnection = _connections.DbConnection;
             var jsonTrainingParameters = JsonSerializer.Serialize(trainingParameters);
             return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Parameters]) Values (@jsonTrainingParameters); SELECT SCOPE_IDENTITY()", new { jsonTrainingParameters });
         }
 
-        public async Task<IEnumerable<PredictionModelSummary>> GetModelSummaryListAsync()
+        public async Task<CompositeModel> GetCompositeModel(int compositeModelId)
+        {
+            using var dbConnection = _connections.DbConnection;
+            var jsonTrainingParameters = await dbConnection.QueryFirstOrDefaultAsync<string>("SELECT [Parameters] FROM CompositeModels WHERE Id = @Id", new { Id = compositeModelId });
+            if (jsonTrainingParameters == null)
+            {
+                throw new KeyNotFoundException($"Model with id {compositeModelId} not found.");
+            }
+            var trainingParameters = JsonSerializer.Deserialize<TrainingParameters>(jsonTrainingParameters);
+
+            var predictionModelSummaries = await dbConnection.QueryAsync<PredictionModelSummary>("SELECT * FROM EquityModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
+            var pricePredictors = await Task.WhenAll(predictionModelSummaries.Select(async modelSummary => await getPricePredictor(modelSummary)));
+
+            return new CompositeModel(trainingParameters, pricePredictors);
+        }
+
+        public async Task<IEnumerable<PredictionModelSummary>> GetModelSummaryList()
         {
             using var dbConnection = _connections.DbConnection;
             return await dbConnection.QueryAsync<PredictionModelSummary>(selectTrainedModels);
         }
 
-        public async Task<PredictionModel> GetPredictionModelAsync(int id)
+        public async Task<IPredictor> GetPricePredictor(int id)
         {
             using var dbConnection = _connections.DbConnection;
             var modelSummary = await dbConnection.QueryFirstOrDefaultAsync<PredictionModelSummary>("SELECT * FROM EquityModels WHERE Id = @Id", new { Id = id });
@@ -42,11 +58,20 @@ namespace Visavi.Quantis.Data
                 throw new KeyNotFoundException($"Model with id {id} not found.");
             }
 
+            return await getPricePredictor(modelSummary);
+        }
+
+        private async Task<IPredictor> getPricePredictor(PredictionModelSummary modelSummary)
+        {
+            if (modelSummary == null)
+            {
+                throw new NullReferenceException($"modelSummary can not be null.");
+            }
             var storageConnection = _connections.BlobConnection;
             var containerClient = storageConnection.GetBlobContainerClient(equityModelsContainer);
             var blobClient = containerClient.GetBlobClient(modelSummary.Path);
             var inferencingModel = (await blobClient.DownloadContentAsync()).Value.Content;
-            return new PredictionModel(modelSummary, inferencingModel);
+            return new PricePointPredictor(modelSummary, inferencingModel) as IPredictor;
         }
 
         public async Task SaveModel(string modelName, RegressionModel regressionModel)

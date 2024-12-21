@@ -17,22 +17,28 @@ namespace Visavi.Quantis.Api
     public class HttpService
     {
         private readonly ILogger<HttpService> _logger;
-        private readonly ModelService _modelService;
+        private readonly IPredictionService _predictionService;
         private readonly IDataServices _dataServices;
 
         // HTTP Requests
         private static readonly string reloadDaysParmName = "reloadDays";
         private const string quantisModelingQueue = "quantis-modeling";
 
-        public HttpService(ILogger<HttpService> logger, ModelService modelService, IDataServices dataServices)
+        public HttpService(ILogger<HttpService> logger, IPredictionService predictionService, IDataServices dataServices)
         {
             _logger = logger;
-            _modelService = modelService;
+            _predictionService = predictionService;
             _dataServices = dataServices;
         }
 
-        [Function("EquityModel")]
-        public async Task<IActionResult> HttpEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post", "get"], Route = "EquityModel/{id:int?}")] HttpRequest req, int? id)
+        /// <summary>
+        /// HTTP Trigger for Training a Model
+        /// </summary>
+        /// <param name="req"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [Function("Model")]
+        public async Task<IActionResult> HttpEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post", "get"], Route = "Model/{id:int?}")] HttpRequest req, int? id)
         {
             switch (req.Method.ToLower())
             {
@@ -61,7 +67,7 @@ namespace Visavi.Quantis.Api
                     return await httpPostEquityModel(equityIndex, targetDurationsInMonths, datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null, trainingAlgorithm);
 
                 case "get":
-                    return await (id == null ? httpGetModelSummaryList() : httpGetModel(id.Value));
+                    return await (id == null ? httpGetModelSummaryList() : httpGetModel(ModelType.Composite, id.Value));
 
                 default:
                     return new BadRequestResult();
@@ -70,18 +76,19 @@ namespace Visavi.Quantis.Api
 
         private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int[]? targetDurationsInMonths, int? datasetSizeLimit = null, TrainingAlgorithm? algorithm = null)
         {
-            if (targetDurationsInMonths != null && targetDurationsInMonths.Any(duration => !PredictionModel.IsValidDuration(duration)))
+            if (targetDurationsInMonths != null && targetDurationsInMonths.Any(duration => !PricePointPredictor.IsValidDuration(duration)))
             {
                 return new BadRequestObjectResult($"{targetDurationsInMonths} is not a valid Target Duration. Try 12, 24, 36 or 60 instead.");
             }
 
             _logger?.LogInformation("Queuing Training of Model.");
 
-            var receipt = await sendModelingMessage(new TrainModelMessage(){
+            var receipt = await sendModelingMessage(new TrainModelMessage(new TrainingParameters()
+                                                    {
                                                         TargetDurationsInMonths = targetDurationsInMonths,
                                                         Index = equityIndex,
                                                         DatasetSizeLimit = datasetSizeLimit,
-                                                        Algorithm = algorithm });
+                                                        Algorithm = algorithm }));
 
             var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}";
             _logger?.LogInformation(resultText);
@@ -103,7 +110,7 @@ namespace Visavi.Quantis.Api
             }
 
             string[] tickers = ticker.Split(',');
-            var predictions = await _modelService.PredictAsync(modelId.Value, tickers);
+            var predictions = await _predictionService.PredictPriceTrend(modelId.Value, tickers);
             var options = new JsonSerializerOptions
             {
                 NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
@@ -118,14 +125,14 @@ namespace Visavi.Quantis.Api
         {
             _logger?.LogInformation("Getting a list of all trained models.");
 
-            var models = await _dataServices.PredictionModels.GetModelSummaryListAsync();
+            var models = await _dataServices.PredictionModels.GetModelSummaryList();
             var resultText = JsonSerializer.Serialize(models);
 
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
         }
 
-        private async Task<IActionResult> httpGetModel(int id)
+        private async Task<IActionResult> httpGetModel(ModelType type, int id)
         {
             /*
             _logger?.LogInformation($"Getting inference model for id {id}");
@@ -226,7 +233,7 @@ namespace Visavi.Quantis.Api
 
         private async Task<int> sendModelingMessage(TrainModelMessage message)
         {
-            message.CompositeModelId = await _dataServices.PredictionModels.CreateConglomerateModel(message);
+            message.TrainingParameters.CompositeModelId = await _dataServices.PredictionModels.CreateCompositeModel(message);
 
             var queueServiceClient = _dataServices.QueueConnection;
             var queueClient = queueServiceClient.GetQueueClient(quantisModelingQueue);
@@ -234,7 +241,7 @@ namespace Visavi.Quantis.Api
 
             string jsonMessage = JsonSerializer.Serialize(message);
             var sendReceipt =  await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
-            return message?.CompositeModelId ?? 0;
+            return message?.TrainingParameters.CompositeModelId ?? 0;
         }
     }
 }

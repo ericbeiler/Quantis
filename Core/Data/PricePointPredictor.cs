@@ -1,13 +1,13 @@
 ﻿namespace Visavi.Quantis.Data
 {
-    public class PredictionModel
+    public class PricePointPredictor : IPredictor
     {
         private const int OneYear = 12;
         private const int TwoYears = 24;
         private const int ThreeYears = 36;
         private const int FiveYears = 60;
 
-        public PredictionModel(PredictionModelSummary summary, BinaryData inferencingModel)
+        public PricePointPredictor(PredictionModelSummary summary, BinaryData inferencingModel)
         {
             Id = summary.Id;
             Type = summary.Type;
@@ -53,7 +53,7 @@
 
     public static class PredictionModelExtensions
     {
-        public static Stream GetModelStream(this PredictionModel model)
+        public static Stream GetModelStream(this PricePointPredictor model)
         {
             return model.InferencingModel.ToStream();
         }

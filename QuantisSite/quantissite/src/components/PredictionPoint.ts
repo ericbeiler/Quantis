@@ -1,4 +1,4 @@
-interface Prediction {
+interface PredictionPoint {
   Ticker: string;
   StartingDate: string;
   StartingPrice: number;
@@ -9,4 +9,4 @@ interface Prediction {
   PredictedCagr: number | null;
 }
 
-export default Prediction;
+export default PredictionPoint;

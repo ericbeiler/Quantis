@@ -19,6 +19,7 @@ namespace Visavi.Quantis.Data
             _connections = new Connections(_logger, _configuration);
         }
 
+        public ICacheService Cache => new Cache(_connections, _logger);
         public IEquityArchives EquityArchives => new EquityArchives(_connections, _logger);
 
         public IPredictionModels PredictionModels => new PredictionModels(_connections, _logger);

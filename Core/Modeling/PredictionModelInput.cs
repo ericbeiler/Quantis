@@ -4,6 +4,12 @@ namespace Visavi.Quantis.Modeling
 {
     public class PredictionModelInput
     {
+        public static readonly float MinimumAltmanZScore = Convert.ToSingle(EquityArchives.MinAltmanZScore);
+        public static readonly float MinimumPriceToSales = Convert.ToSingle(EquityArchives.MinPriceToSales);
+        public static readonly float MinimumPriceToEarnings = Convert.ToSingle(EquityArchives.MinPriceToEarnings);
+        public static readonly float MinimumDividendYield = Convert.ToSingle(EquityArchives.MinDividendYield);
+        public static readonly float MinimumPriceToCashFlow = Convert.ToSingle(EquityArchives.MinPriceToCashFlow);
+
         public float MarketCap { get; set; }
         public float PriceToEarningsQuarterly { get; set; }
         public float PriceToEarningsTTM { get; set; }
@@ -33,27 +39,27 @@ namespace Visavi.Quantis.Modeling
                 return new PredictionModelInput
                 {
                     MarketCap = dailyEquityRecord.MarketCap.Value,
-                    PriceToEarningsQuarterly = dailyEquityRecord.PriceToEarningsQuarterly.Value,
-                    PriceToEarningsTTM = dailyEquityRecord.PriceToEarningsTTM.Value,
-                    PriceToSalesQuarterly = dailyEquityRecord.PriceToSalesQuarterly.Value,
-                    PriceToSalesTTM = dailyEquityRecord.PriceToSalesTTM.Value,
+                    PriceToEarningsQuarterly = dailyEquityRecord.PriceToEarningsQuarterly ?? PredictionModelInput.MinimumPriceToEarnings,
+                    PriceToEarningsTTM = dailyEquityRecord.PriceToEarningsTTM ?? PredictionModelInput.MinimumPriceToEarnings,
+                    PriceToSalesQuarterly = dailyEquityRecord.PriceToSalesQuarterly ?? PredictionModelInput.MinimumPriceToSales,
+                    PriceToSalesTTM = dailyEquityRecord.PriceToSalesTTM ?? PredictionModelInput.MinimumPriceToSales,
                     PriceToBookValue = dailyEquityRecord.PriceToBookValue.Value,
-                    PriceToFreeCashFlowQuarterly = dailyEquityRecord.PriceToFreeCashFlowQuarterly.Value,
-                    PriceToFreeCashFlowTTM = dailyEquityRecord.PriceToFreeCashFlowTTM.Value,
+                    PriceToFreeCashFlowQuarterly = dailyEquityRecord.PriceToFreeCashFlowQuarterly ?? PredictionModelInput.MinimumPriceToCashFlow,
+                    PriceToFreeCashFlowTTM = dailyEquityRecord.PriceToFreeCashFlowTTM ?? PredictionModelInput.MinimumPriceToCashFlow,
                     EnterpriseValue = dailyEquityRecord.EnterpriseValue.Value,
                     EnterpriseValueToEBITDA = dailyEquityRecord.EnterpriseValueToEBITDA.Value,
-                    EnterpriseValueToSales = dailyEquityRecord.EnterpriseValueToSales.Value,
-                    EnterpriseValueToFreeCashFlow = dailyEquityRecord.EnterpriseValueToFreeCashFlow.Value,
+                    EnterpriseValueToSales = dailyEquityRecord.EnterpriseValueToSales ?? PredictionModelInput.MinimumPriceToSales,
+                    EnterpriseValueToFreeCashFlow = dailyEquityRecord.EnterpriseValueToFreeCashFlow ?? PredictionModelInput.MinimumPriceToCashFlow,
                     BookToMarketValue = dailyEquityRecord.BookToMarketValue.Value,
                     OperatingIncomeToEnterpriseValue = dailyEquityRecord.OperatingIncomeToEnterpriseValue.Value,
-                    AltmanZScore = dailyEquityRecord.AltmanZScore.Value,
-                    DividendYield = dailyEquityRecord.DividendYield ?? 0,
-                    PriceToEarningsAdjusted = dailyEquityRecord.PriceToEarningsAdjusted.Value
+                    AltmanZScore = dailyEquityRecord.AltmanZScore ?? PredictionModelInput.MinimumAltmanZScore,
+                    DividendYield = dailyEquityRecord.DividendYield ?? PredictionModelInput.MinimumDividendYield,
+                    PriceToEarningsAdjusted = dailyEquityRecord.PriceToEarningsAdjusted ?? PredictionModelInput.MinimumPriceToEarnings
                 };
             }
             catch (Exception ex)
             {
-                throw new Exception(@$"Unable to convert to model Input:
+                throw new Exception(@$"Unable to convert to model Input for {dailyEquityRecord.Ticker}:
                                     MarketCap = {dailyEquityRecord.MarketCap}
                                     PriceToEarningsQuarterly = {dailyEquityRecord.PriceToEarningsQuarterly}
                                     PriceToEarningsTTM = {dailyEquityRecord.PriceToEarningsTTM}

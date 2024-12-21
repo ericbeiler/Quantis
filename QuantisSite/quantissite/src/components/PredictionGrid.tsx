@@ -4,29 +4,29 @@ import { ColDef } from 'ag-grid-community'; // Column Definition Interface
 import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS required by the Data Grid
 import "ag-grid-community/styles/ag-theme-alpine.css"; // Optional Theme applied to the Data Grid
 
-import Prediction from "./Prediction";
+import PredictionTrend from "./PredictionTrend";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
-const PredictionGrid2 = () => {
+const PredictionGrid = () => {
 
   // Formatter function: Formats a numeric value to 2 decimal places or returns a default string.
-  const formatToPrice = (value?: number | null, defaultValue: string = 'N/A') =>
-    value !== undefined && value !== null ? value.toFixed(2) : defaultValue;
+//  const formatToPrice = (value?: number | null, defaultValue: string = 'N/A') =>
+//    value !== undefined && value !== null ? value.toFixed(2) : defaultValue;
 
   // Row Data: The data to be displayed.
-  const [predictions, setRowData] = useState<Prediction[]>([]);
+  const [predictions, setRowData] = useState<PredictionTrend[]>([]);
   
   // Column Definitions: Defines the columns to be displayed.
-  const predictionColumns: ColDef<Prediction>[] = [
-    { field: 'Ticker', headerName: 'Ticker', width: 100 },
-    { field: 'StartingDate', headerName: 'Starting Date', width: 150 },
-    { field: 'StartingPrice', headerName: 'Starting Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.StartingPrice) },
-    { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
-    { field: 'PredictedEndingPrice', headerName: 'Predicted Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.PredictedEndingPrice) },
-    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeLow) },
-    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeHigh) },
-    { field: 'PredictedCagr', headerName: 'Predicted CAGR', width: 150, valueFormatter: params => formatToPrice(params?.data?.PredictedCagr) }
+  const predictionColumns: ColDef<PredictionTrend>[] = [
+    { field: 'Ticker', headerName: 'Ticker', width: 100 }//,
+//    { field: 'PredictionPoints[0].StartingDate', headerName: 'Starting Date', width: 150 },
+//    { field: 'StartingPrice', headerName: 'Starting Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.StartingPrice) },
+//    { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
+//    { field: 'PredictedEndingPrice', headerName: 'Predicted Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.PredictedEndingPrice) },
+//    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeLow) },
+//    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeHigh) },
+//    { field: 'PredictedCagr', headerName: 'Predicted CAGR', width: 150, valueFormatter: params => formatToPrice(params?.data?.PredictedCagr) }
   ];
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +34,7 @@ const PredictionGrid2 = () => {
     const fetchPredictions = async () => {
       try {
         // Fetch the data from the API
-        const response = await fetch(`${serverUrl}api/Predictions/8?ticker=SPY`);
+        const response = await fetch(`${serverUrl}api/Predictions/5?ticker=SPY`);
         const predictionArray = await response.json();
 
         // Update state
@@ -68,4 +68,4 @@ const PredictionGrid2 = () => {
   )
 };
 
-export default PredictionGrid2;
+export default PredictionGrid;

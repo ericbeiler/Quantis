@@ -31,8 +31,10 @@ namespace Visavi.Quantis.Data
         private IDataView _modelingDataset;
         private IDataServices _dataServices;
         private uint _maxTrainingTimeInSeconds;
+        private int? _datasetSizeLimit;
 
-        public RegressionModel(IDataServices dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null, uint? maxTrainingTimeInSeconds = null)
+        public RegressionModel(IDataServices dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null,
+                                uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit =null)
         {
             Timestamp = DateTime.Now;
             _dataServices = dataServices;
@@ -42,6 +44,7 @@ namespace Visavi.Quantis.Data
             TrainingAlgorithm = algorithm;
             _maxTrainingTimeInSeconds = maxTrainingTimeInSeconds ?? defaultMaxTrainingTimeInSeconds;
             CompositeId = compositeId;
+            _datasetSizeLimit = datasetSizeLimit;
 
             _mlContext.Log += (_, e) => logMlMessage(e.Kind, e.Message);
         }
@@ -57,11 +60,11 @@ namespace Visavi.Quantis.Data
 
         private TrainTestData _trainAndTestData;
 
-        private IDataView buildDataLoader(int? datasetSizeLimit = null)
+        private IDataView buildDataLoader()
         {
             //Create ML Context with seed for repeteable/deterministic results
             var loader = _mlContext.Data.CreateDatabaseLoader<PredictionModelInput>();
-            return loader.Load(_dataServices.EquityArchives.GetTrainingDataQuerySource(IndexTicker, TargetDurationInMonths, datasetSizeLimit));
+            return loader.Load(_dataServices.EquityArchives.GetTrainingDataQuerySource(IndexTicker, TargetDurationInMonths, _datasetSizeLimit));
         }
 
         private IEstimator<ITransformer> buildDataPipeline()
@@ -203,7 +206,12 @@ namespace Visavi.Quantis.Data
         public async Task Save()
         {
             // Saving the model with a default name
-            await _dataServices.PredictionModels.SaveModel($"Regression-{CompositeId}-{IndexTicker}-{TargetDurationInMonths}-{_timestamp.ToString(datetimeTagFormat)}", this);
+            var defaultModelName = $"Regression-{CompositeId}-{IndexTicker}-{TargetDurationInMonths}-{_timestamp.ToString(datetimeTagFormat)}";
+            if (_datasetSizeLimit != null)
+            {
+                defaultModelName += $"-Limit{_datasetSizeLimit}";
+            }
+            await _dataServices.PredictionModels.SaveModel(defaultModelName, this);
         }
 
         public void Save(Stream stream)

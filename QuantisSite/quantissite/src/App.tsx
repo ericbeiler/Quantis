@@ -2,7 +2,7 @@ import './App.css'
 
 import 'react-data-grid/lib/styles.css'
 
-import PredictionGrid from './components/PredictionGrid2'  
+import PredictionGrid from './components/PredictionGrid'  
 
 
 function App() {
