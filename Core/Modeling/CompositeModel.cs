@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Visavi.Quantis.Modeling;
+using Visavi.Quantis.Data;
 
-namespace Visavi.Quantis.Data
+namespace Visavi.Quantis.Modeling
 {
     public class CompositeModel
     {

@@ -11,14 +11,14 @@ namespace Visavi.Quantis.Data
         private const int timeoutInSeconds = 3600;
         private const int MergeWarningThresholdMs = 8000;
 
-        private const decimal minMarketCap = 10000000;
-        private const decimal maxMarketCap = 10000000000000;
+        public const decimal MinMarketCap = 10000000;
+        public const decimal maxMarketCap = 10000000000000;
 
         public const decimal MinPriceToEarnings = -100000;
         public const decimal MaxPriceToEarnings = 100000;
 
-        private const decimal minPriceToBook = -1000;
-        private const decimal maxPriceToBook = 1000;
+        public const decimal MinPriceToBook = -100000;
+        public const decimal MaxPriceToBook = 100000;
 
         public const decimal MinDividendYield = 0;
         private const decimal maxDividendYield = 100;
@@ -134,19 +134,19 @@ namespace Visavi.Quantis.Data
                                 CAST(Y{targetDuraionInYears}Cagr AS REAL) AS Cagr
                         FROM EquityHistory
                         WHERE [Y{targetDuraionInYears}Cagr] IS NOT NULL AND [Y{targetDuraionInYears}Cagr] > {minCagr} AND [Y{targetDuraionInYears}Cagr] < {maxCagr}
-                                AND MarketCap IS NOT NULL AND MarketCap > {minMarketCap} AND MarketCap < {maxMarketCap}
+                                AND MarketCap IS NOT NULL AND MarketCap > {MinMarketCap} AND MarketCap < {maxMarketCap}
                                 AND PriceToEarningsQuarterly IS NOT NULL AND PriceToEarningsQuarterly > {MinPriceToEarnings} AND PriceToEarningsQuarterly < {MaxPriceToEarnings}
                                 AND PriceToEarningsTTM IS NOT NULL AND PriceToEarningsTTM > {MinPriceToEarnings} AND PriceToEarningsTTM < {MaxPriceToEarnings}
                                 AND PriceToSalesQuarterly IS NOT NULL AND PriceToSalesQuarterly > {MinPriceToSales} AND PriceToSalesQuarterly < {MaxPriceToSales}
                                 AND PriceToSalesTTM IS NOT NULL AND PriceToSalesTTM > {MinPriceToSales} AND PriceToSalesTTM < {MaxPriceToSales}
-                                AND PriceToBookValue IS NOT NULL AND PriceToBookValue > {minPriceToBook} AND PriceToBookValue < {maxPriceToBook}
+                                AND PriceToBookValue IS NOT NULL AND PriceToBookValue > {MinPriceToBook} AND PriceToBookValue < {MaxPriceToBook}
                                 AND PriceToFreeCashFlowQuarterly IS NOT NULL AND PriceToFreeCashFlowQuarterly > {MinPriceToCashFlow} AND PriceToFreeCashFlowQuarterly < {MaxPriceToCashFlow}
                                 AND PriceToFreeCashFlowTTM IS NOT NULL AND PriceToFreeCashFlowTTM > {MinPriceToCashFlow} AND PriceToFreeCashFlowTTM < {MaxPriceToCashFlow}
-                                AND EnterpriseValue IS NOT NULL AND EnterpriseValue > {minMarketCap} AND EnterpriseValue < {maxMarketCap}
+                                AND EnterpriseValue IS NOT NULL AND EnterpriseValue > {MinMarketCap} AND EnterpriseValue < {maxMarketCap}
                                 AND EnterpriseValueToEBITDA IS NOT NULL AND EnterpriseValueToEBITDA > {MinPriceToEarnings}  AND EnterpriseValueToEBITDA < {MaxPriceToEarnings}
                                 AND EnterpriseValueToSales IS NOT NULL AND EnterpriseValueToSales > {MinPriceToSales} AND EnterpriseValueToSales < {MaxPriceToSales}
                                 AND EnterpriseValueToFreeCashFlow IS NOT NULL AND EnterpriseValueToFreeCashFlow > {MinPriceToCashFlow} AND EnterpriseValueToFreeCashFlow < {MaxPriceToCashFlow}
-                                AND BookToMarketValue IS NOT NULL AND BookToMarketValue > {minPriceToBook} AND BookToMarketValue < {maxPriceToBook}
+                                AND BookToMarketValue IS NOT NULL AND BookToMarketValue > {MinPriceToBook} AND BookToMarketValue < {MaxPriceToBook}
                                 AND OperatingIncomeToEnterpriseValue IS NOT NULL AND OperatingIncomeToEnterpriseValue > {MinPriceToEarnings} AND OperatingIncomeToEnterpriseValue < {MaxPriceToEarnings}
                                 AND AltmanZScore IS NOT NULL AND AltmanZScore > {MinAltmanZScore} AND AltmanZScore < {MaxAltmanZScore}
                                 AND DividendYield IS NOT NULL AND DividendYield >= {MinDividendYield} AND DividendYield < {maxDividendYield}

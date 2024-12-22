@@ -7,7 +7,7 @@ namespace Visavi.Quantis.Data
     {
         Task<int> CreateCompositeModel(TrainModelMessage trainingParameters);
         Task<CompositeModel> GetCompositeModel(int compositeModelId);
-        Task<IEnumerable<PredictionModelSummary>> GetModelSummaryList();
+        Task<IEnumerable<ModelSummary>> GetModelSummaryList(ModelType modelType = ModelType.Composite);
         Task<IPredictor> GetPricePredictor(int id);
         Task SaveModel(string modelName, RegressionModel trainedModel);
     }

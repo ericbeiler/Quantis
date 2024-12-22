@@ -79,7 +79,7 @@ const PredictionGrid = () => {
     const fetchPredictions = async () => {
       try {
         // Fetch the data from the API
-        const response = await fetch(`${serverUrl}api/Predictions/1?ticker=SPY`);
+        const response = await fetch(`${serverUrl}api/Predictions/7?ticker=SPY`);
         const predictionArray = await response.json();
 
         // Update state

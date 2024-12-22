@@ -9,6 +9,8 @@ namespace Visavi.Quantis.Modeling
         public static readonly float MinimumPriceToEarnings = Convert.ToSingle(EquityArchives.MinPriceToEarnings);
         public static readonly float MinimumDividendYield = Convert.ToSingle(EquityArchives.MinDividendYield);
         public static readonly float MinimumPriceToCashFlow = Convert.ToSingle(EquityArchives.MinPriceToCashFlow);
+        public static readonly float MinimumPriceToBook = Convert.ToSingle(EquityArchives.MinPriceToBook);
+        public static readonly float MinimumMarketCap = Convert.ToSingle(EquityArchives.MinMarketCap);
 
         public float MarketCap { get; set; }
         public float PriceToEarningsQuarterly { get; set; }
@@ -38,20 +40,20 @@ namespace Visavi.Quantis.Modeling
             {
                 return new PredictionModelInput
                 {
-                    MarketCap = dailyEquityRecord.MarketCap.Value,
+                    MarketCap = dailyEquityRecord.MarketCap ?? PredictionModelInput.MinimumMarketCap,
                     PriceToEarningsQuarterly = dailyEquityRecord.PriceToEarningsQuarterly ?? PredictionModelInput.MinimumPriceToEarnings,
                     PriceToEarningsTTM = dailyEquityRecord.PriceToEarningsTTM ?? PredictionModelInput.MinimumPriceToEarnings,
                     PriceToSalesQuarterly = dailyEquityRecord.PriceToSalesQuarterly ?? PredictionModelInput.MinimumPriceToSales,
                     PriceToSalesTTM = dailyEquityRecord.PriceToSalesTTM ?? PredictionModelInput.MinimumPriceToSales,
-                    PriceToBookValue = dailyEquityRecord.PriceToBookValue.Value,
+                    PriceToBookValue = dailyEquityRecord.PriceToBookValue ?? PredictionModelInput.MinimumPriceToBook,
                     PriceToFreeCashFlowQuarterly = dailyEquityRecord.PriceToFreeCashFlowQuarterly ?? PredictionModelInput.MinimumPriceToCashFlow,
                     PriceToFreeCashFlowTTM = dailyEquityRecord.PriceToFreeCashFlowTTM ?? PredictionModelInput.MinimumPriceToCashFlow,
-                    EnterpriseValue = dailyEquityRecord.EnterpriseValue.Value,
-                    EnterpriseValueToEBITDA = dailyEquityRecord.EnterpriseValueToEBITDA.Value,
+                    EnterpriseValue = dailyEquityRecord.EnterpriseValue ?? PredictionModelInput.MinimumMarketCap,
+                    EnterpriseValueToEBITDA = dailyEquityRecord.EnterpriseValueToEBITDA ?? PredictionModelInput.MinimumPriceToBook,
                     EnterpriseValueToSales = dailyEquityRecord.EnterpriseValueToSales ?? PredictionModelInput.MinimumPriceToSales,
                     EnterpriseValueToFreeCashFlow = dailyEquityRecord.EnterpriseValueToFreeCashFlow ?? PredictionModelInput.MinimumPriceToCashFlow,
-                    BookToMarketValue = dailyEquityRecord.BookToMarketValue.Value,
-                    OperatingIncomeToEnterpriseValue = dailyEquityRecord.OperatingIncomeToEnterpriseValue.Value,
+                    BookToMarketValue = dailyEquityRecord.BookToMarketValue ?? PredictionModelInput.MinimumPriceToBook,
+                    OperatingIncomeToEnterpriseValue = dailyEquityRecord.OperatingIncomeToEnterpriseValue ?? PredictionModelInput.MinimumPriceToBook,
                     AltmanZScore = dailyEquityRecord.AltmanZScore ?? PredictionModelInput.MinimumAltmanZScore,
                     DividendYield = dailyEquityRecord.DividendYield ?? PredictionModelInput.MinimumDividendYield,
                     PriceToEarningsAdjusted = dailyEquityRecord.PriceToEarningsAdjusted ?? PredictionModelInput.MinimumPriceToEarnings

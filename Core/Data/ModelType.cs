@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Visavi.Quantis.Modeling
+namespace Visavi.Quantis.Data
 {
     public enum ModelType
     {
         Composite,
-        CagrPredictor
+        CagrRegression
     }
 }

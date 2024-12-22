@@ -13,6 +13,7 @@ namespace Visavi.Quantis.Data
         public Cache(Connections connections, ILogger logger)
         {
             _connections = connections;
+            _logger = logger;
         }
 
         public async Task<T?> Get<T>(string key)
@@ -37,10 +38,12 @@ namespace Visavi.Quantis.Data
             }
             key = key.ToLower();
             string jsonValue = JsonSerializer.Serialize(value);
+            _logger.LogInformation($"Setting cache value for key {key} to {jsonValue}");
             using var connection = _connections.DbConnection;
             {
                 await connection.ExecuteAsync("INSERT INTO [Cache] ([Key], [Value]) VALUES (@key, @jsonValue)", new { key, jsonValue }, commandTimeout: timeoutInSeconds);
             }
+            _logger.LogInformation($"Set cache value for key {key}");
         }
     }
 }

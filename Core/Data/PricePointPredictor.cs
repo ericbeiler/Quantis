@@ -7,7 +7,7 @@
         private const int ThreeYears = 36;
         private const int FiveYears = 60;
 
-        public PricePointPredictor(PredictionModelSummary summary, BinaryData inferencingModel)
+        public PricePointPredictor(CagrRegressionModel summary, BinaryData inferencingModel)
         {
             Id = summary.Id;
             Type = summary.Type;

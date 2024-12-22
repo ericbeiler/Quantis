@@ -9,7 +9,8 @@ namespace Visavi.Quantis.Data
     internal class PredictionModels : IPredictionModels
     {
         private const string equityModelsContainer = "equity-models";
-        private const string selectTrainedModels = "SELECT * FROM EquityModels";
+        private const string retrieveCagrRegressionModels = "SELECT * FROM CagrRegressionModels";
+        private const string retrieveCompositeModels = "SELECT * FROM CompositeModels";
 
         ILogger _logger;
         Connections _connections;
@@ -37,22 +38,34 @@ namespace Visavi.Quantis.Data
             }
             var trainingParameters = JsonSerializer.Deserialize<TrainingParameters>(jsonTrainingParameters);
 
-            var predictionModelSummaries = await dbConnection.QueryAsync<PredictionModelSummary>("SELECT * FROM EquityModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
+            var predictionModelSummaries = await dbConnection.QueryAsync<CagrRegressionModel>("SELECT * FROM CagrRegressionModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
             var pricePredictors = await Task.WhenAll(predictionModelSummaries.Select(async modelSummary => await getPricePredictor(modelSummary)));
 
             return new CompositeModel(trainingParameters, pricePredictors);
         }
 
-        public async Task<IEnumerable<PredictionModelSummary>> GetModelSummaryList()
+        public async Task<IEnumerable<ModelSummary>> GetModelSummaryList(ModelType modelType = ModelType.Composite)
         {
             using var dbConnection = _connections.DbConnection;
-            return await dbConnection.QueryAsync<PredictionModelSummary>(selectTrainedModels);
+            switch (modelType)
+            {
+                case ModelType.Composite:
+                    var compositeModels = await dbConnection.QueryAsync<CompositeModelRecord>(retrieveCompositeModels);
+                    return compositeModels.Select(model => model.ToModelSummary());
+
+                case ModelType.CagrRegression:
+                    var regressionModels = await dbConnection.QueryAsync<CagrRegressionModel>(retrieveCagrRegressionModels);
+                    return regressionModels.Select(model => model.ToModelSummary());
+
+                default:
+                    throw new ArgumentException($"ModelType {modelType} not supported.");
+            }
         }
 
         public async Task<IPredictor> GetPricePredictor(int id)
         {
             using var dbConnection = _connections.DbConnection;
-            var modelSummary = await dbConnection.QueryFirstOrDefaultAsync<PredictionModelSummary>("SELECT * FROM EquityModels WHERE Id = @Id", new { Id = id });
+            var modelSummary = await dbConnection.QueryFirstOrDefaultAsync<CagrRegressionModel>("SELECT * FROM CagrRegressionModels WHERE Id = @Id", new { Id = id });
             if (modelSummary == null)
             {
                 throw new KeyNotFoundException($"Model with id {id} not found.");
@@ -61,7 +74,7 @@ namespace Visavi.Quantis.Data
             return await getPricePredictor(modelSummary);
         }
 
-        private async Task<IPredictor> getPricePredictor(PredictionModelSummary modelSummary)
+        private async Task<IPredictor> getPricePredictor(CagrRegressionModel modelSummary)
         {
             if (modelSummary == null)
             {
@@ -93,7 +106,7 @@ namespace Visavi.Quantis.Data
 
             _logger?.LogInformation("Saved Model, updating metadata");
             using var connection = _connections.DbConnection;
-            await connection.ExecuteAsync("INSERT INTO EquityModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
+            await connection.ExecuteAsync("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
                                     "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @CompositeId, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)",
                                     new
                                     {

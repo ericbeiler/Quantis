@@ -36,6 +36,11 @@ namespace Visavi.Quantis.Modeling
 
         internal async Task ExecuteAsync()
         {
+            if (_trainingParameters == null)
+            {
+                throw new NullReferenceException("Training Parameters are required to train a model.");
+            }
+
             var targetDurations = _trainingParameters.TargetDurationsInMonths == null || _trainingParameters.TargetDurationsInMonths.Length == 0
                                         ? TrainingParameters.DefaultDurations : _trainingParameters.TargetDurationsInMonths;
 
@@ -64,6 +69,7 @@ namespace Visavi.Quantis.Modeling
             {
                 _logger.LogError(ex, $"Unable to cache model predictions.");
             }
+            _logger.LogInformation($"Model Training Job completed for Composite {_trainingParameters.CompositeModelId}.");
         }
 
         private async Task generateModel(int targetDurationInMonths)

@@ -48,16 +48,32 @@ namespace Visavi.Quantis.Modeling
                     }
 
                     _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
+                    if (queueMessage.TrainingParameters == null)
+                    {
+                        _logger.LogError($"No training parameters found in message {poppedMessage?.MessageId}. Cancelling Message.");
+                        _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
+                        continue;
+                    }
                     var trainingJob = new ModelTrainingJob(queueMessage.TrainingParameters, _dataServices, _predictionService, _logger, cancellationToken);
                     await trainingJob.ExecuteAsync();
 
-                    _logger.LogInformation($"Deleting message {poppedMessage?.MessageId}.");
-                    _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, $"Could not build model for message {poppedMessage?.MessageId}\n{ex.ToString()}.");
-                    continue;
+                    _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
+                }
+                finally
+                {
+                    try
+                    {
+                        _logger.LogInformation($"Deleting message {poppedMessage?.MessageId}.");
+                        _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Unable to Delete Message {poppedMessage?.MessageId}.");
+                    }
                 }
             }
             _logger.LogInformation("Model Training Service Stopped at: {time}", DateTime.Now);
