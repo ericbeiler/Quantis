@@ -4,11 +4,12 @@ import { ColDef } from 'ag-grid-community'; // Column Definition Interface
 import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS required by the Data Grid
 import "ag-grid-community/styles/ag-theme-alpine.css"; // Optional Theme applied to the Data Grid
 
+import ModelSelectorProps from "./ModelSelectorProps";
 import PredictionTrend from "./PredictionTrend";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
-const PredictionGrid = () => {
+const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
 
   // Formatter function: Formats a numeric value to 2 decimal places or returns a default string.
   const formatToPrice = (value?: number | null, defaultValue: string = 'N/A') =>
@@ -21,51 +22,51 @@ const PredictionGrid = () => {
   const predictionColumns: ColDef<PredictionTrend>[] = [
     { field: 'Ticker', headerName: 'Ticker', width: 100 },
     {
-      field: 'predictionArray[0].PricePoints[0].StartingDate', headerName: 'Starting Date', width: 120,
+      headerName: 'Starting Date', width: 120,
       valueGetter: params => params.data?.PricePoints?.[0]?.StartingDate 
     },
     {
-      field: 'StartingPrice', headerName: 'Starting Price', width: 120,
+      headerName: 'Starting Price', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.StartingPrice),
       valueGetter: params => params.data?.PricePoints?.[0]?.StartingPrice 
     },
     {
-      field: 'PredictedEndingPrice', headerName: 'Year 1 Price', width: 120,
+      headerName: 'Year 1 Price', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.PredictedEndingPrice),
       valueGetter: params => params.data?.PricePoints?.[0]?.PredictedEndingPrice
     },
     {
-      field: 'PredictedEndingPrice', headerName: 'Year 2 Price', width: 120,
+      headerName: 'Year 2 Price', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[1]?.PredictedEndingPrice),
       valueGetter: params => params.data?.PricePoints?.[1]?.PredictedEndingPrice
     },
     {
-      field: 'PredictedEndingPrice', headerName: 'Year 3 Price', width: 120,
+      headerName: 'Year 3 Price', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[2]?.PredictedEndingPrice),
       valueGetter: params => params.data?.PricePoints?.[2]?.PredictedEndingPrice
     },
     {
-      field: 'PredictedEndingPrice', headerName: 'Year 5 Price', width: 120,
+      headerName: 'Year 5 Price', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[3]?.PredictedEndingPrice),
       valueGetter: params => params.data?.PricePoints?.[3]?.PredictedEndingPrice
     },
     {
-      field: 'PredictedCagr', headerName: 'Year 1 CAGR', width: 120,
+      headerName: 'Year 1 CAGR', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.PredictedCagr),
       valueGetter: params => params.data?.PricePoints?.[0]?.PredictedCagr
     },
     {
-      field: 'PredictedCagr', headerName: 'Year 2 CAGR', width: 120,
+      headerName: 'Year 2 CAGR', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[1]?.PredictedCagr),
       valueGetter: params => params.data?.PricePoints?.[1]?.PredictedCagr
     },
     {
-      field: 'PredictedCagr', headerName: 'Year 3 CAGR', width: 120,
+      headerName: 'Year 3 CAGR', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[2]?.PredictedCagr),
       valueGetter: params => params.data?.PricePoints?.[2]?.PredictedCagr
     },
     {
-      field: 'PredictedCagr', headerName: 'Year 5 CAGR', width: 120,
+      headerName: 'Year 5 CAGR', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[3]?.PredictedCagr),
       valueGetter: params => params.data?.PricePoints?.[3]?.PredictedCagr
     }
@@ -79,7 +80,7 @@ const PredictionGrid = () => {
     const fetchPredictions = async () => {
       try {
         // Fetch the data from the API
-        const response = await fetch(`${serverUrl}api/Predictions/7?ticker=SPY`);
+        const response = await fetch(`${serverUrl}api/Predictions/${selectedModel}?ticker=SPY`);
         const predictionArray = await response.json();
 
         // Update state
@@ -92,13 +93,13 @@ const PredictionGrid = () => {
     };
 
     fetchPredictions();
-  }, []); // Empty dependency array means this runs once after the component mounts
+  }, [selectedModel]); // Empty dependency array means this runs once after the component mounts
 
   return (
     // wrapping container with theme & size
     <div
       className="ag-theme-quartz" // applying the Data Grid theme
-      style={{ height: 1000, width: 1400 }} // the Data Grid will fill the size of the parent container
+      style={{ height: 1000 }} // the Data Grid will fill the size of the parent container
     >
       <AgGridReact
         rowData={predictions}

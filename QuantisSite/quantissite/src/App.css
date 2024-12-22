@@ -1,8 +1,50 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+
+.container {
+    display: grid;
+    grid-template-columns: 250px auto;
+    grid-template-rows: 100px 1000px 50px;
+    grid-gap: 10px;
+}
+
+.header {
+    grid-area: header;
+    text-align: center;
+    background-color: lightblue;
+    border: 1px solid black;
+    grid-column-start: 1;
+    grid-column-end: 3;
+    grid-row-start: 1;
+    grid-row-end: 1;
+}
+
+.menu {
+    grid-area: menu;
+    background-color: lightgreen;
+    border: 1px solid black;
+    grid-column-start: 1;
+    grid-column-end: 1;
+    grid-row-start: 2;
+    grid-row-end: 3;
+}
+
+.content {
+    grid-area: content;
+    background-color: lightyellow;
+    border: 1px solid black;
+    grid-column-start: 2;
+    grid-column-end: 2;
+    grid-row-start: 2;
+    grid-row-end: 2;
+}
+
+.footer {
+    grid-area: footer;
+    background-color: lightcoral;
+    border: 1px solid black;
+    grid-column-start: 1;
+    grid-column-end: 3;
+    grid-row-start: 3;
+    grid-row-end: 4;
 }
 
 .logo {
