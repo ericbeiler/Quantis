@@ -1,4 +1,4 @@
-
+﻿
 import { useState, useEffect } from "react";
 import ModelSummary from "./ModelSummary";
 import ModelSelectorProps from "./ModelSelectorProps";
@@ -28,18 +28,14 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
   }, []); // Empty dependency array means this runs once after the component mounts
 
   return (
-    <div>
-      <h2>Models</h2>
-      <ul>
-        {modelList.map((model) => (
-          <li key={model.Id} onClick={() => setSelectedModel(model.Id)}>
-            {model.Name}
-          </li>
-      ))}
+    <div className="p-6 bg-white space-y-4 mx-auto max-w-lg rounded-xl shadow-md">
+      <h2 className="text-gray-900 text-xl font-bold">Models</h2>
+      <ul className="space-y-2"> {modelList.map((model) => (
+        <li key={model.Id} className={`cursor-pointer p-2 rounded-lg ${selectedModel === model.Id ? 'bg-blue-100' : 'bg-gray-100'} hover:bg-blue-200`}
+          onClick={() => setSelectedModel(model.Id)} > {model.Name} </li>))}
       </ul>
-      <h3>Selected: {selectedModel}</h3>
-    </div>
-  );
+      <h3 className="text-gray-700 text-lg font-semibold">Selected: {selectedModel}</h3>
+    </div>);
 }
 
 export default ModelSelector;
