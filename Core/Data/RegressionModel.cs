@@ -11,6 +11,10 @@ namespace Visavi.Quantis.Data
 {
     public class RegressionModel
     {
+        private const int defaultNumberOfTrees = 100;
+        private const int defaultNumberOfLeaves = 50;
+        private const int defaultMinimumExampleCountPerLeaf = 30;
+
         private const double testSampling = 0.2;
         private const string datetimeTagFormat = "yyMMddHHmm";
 
@@ -32,9 +36,12 @@ namespace Visavi.Quantis.Data
         private IDataServices _dataServices;
         private uint _maxTrainingTimeInSeconds;
         private int? _datasetSizeLimit;
+        private readonly int _numberOfTrees;
+        private readonly int _numberOfLeaves;
+        private readonly int _minimumExampleCountPerLeaf;
 
         public RegressionModel(IDataServices dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null,
-                                uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit =null)
+                                uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit = null, int? numberOfTrees = null, int? numberOfLeaves = null, int? minimumExampleCountPerLeaf = null)
         {
             Timestamp = DateTime.Now;
             _dataServices = dataServices;
@@ -45,6 +52,9 @@ namespace Visavi.Quantis.Data
             _maxTrainingTimeInSeconds = maxTrainingTimeInSeconds ?? defaultMaxTrainingTimeInSeconds;
             CompositeId = compositeId;
             _datasetSizeLimit = datasetSizeLimit;
+            _numberOfTrees = numberOfTrees ?? defaultNumberOfTrees;
+            _numberOfLeaves = numberOfLeaves ?? defaultNumberOfLeaves;
+            _minimumExampleCountPerLeaf = minimumExampleCountPerLeaf ?? defaultMinimumExampleCountPerLeaf;
 
             _mlContext.Log += (_, e) => logMlMessage(e.Kind, e.Message);
         }
@@ -114,7 +124,7 @@ namespace Visavi.Quantis.Data
         private ITransformer buildFastTreeModel()
         {
             var dataProcessPipeline = buildDataPipeline();
-            var trainer = _mlContext.Regression.Trainers.FastTree();
+            var trainer = _mlContext.Regression.Trainers.FastTree(numberOfTrees: _numberOfTrees,  numberOfLeaves: _numberOfLeaves, minimumExampleCountPerLeaf: _minimumExampleCountPerLeaf);
 
             var trainingPipeline = dataProcessPipeline.Append(trainer);
 

@@ -80,7 +80,8 @@ namespace Visavi.Quantis.Modeling
                 var regressionModel = new RegressionModel(_dataServices, _logger, IndexTicker, targetDurationInMonths,
                                                             _trainingParameters.Algorithm ?? TrainingAlgorithm.FastTree,
                                                             _trainingParameters.CompositeModelId, totalSeconds,
-                                                            _trainingParameters.DatasetSizeLimit);
+                                                            _trainingParameters.DatasetSizeLimit, _trainingParameters.NumberOfTrees,
+                                                            _trainingParameters.NumberOfLeaves, _trainingParameters.MinimumExampleCountPerLeaf);
                 _ = regressionModel.Train();
                 _ = regressionModel.Evaluate();
                 await regressionModel.Save();

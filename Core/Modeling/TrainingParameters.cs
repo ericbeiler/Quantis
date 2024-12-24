@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Visavi.Quantis.Data;
+﻿using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling
 {
@@ -39,5 +34,9 @@ namespace Visavi.Quantis.Modeling
         public int? DatasetSizeLimit { get; set; }
         public TrainingAlgorithm? Algorithm { get; set; }
         public TimeSpan? MaxTrainingTime { get; set; }
+
+        public int? NumberOfTrees { get; set; }
+        public int? NumberOfLeaves { get; set; }
+        public int? MinimumExampleCountPerLeaf { get; set; }
     }
 }

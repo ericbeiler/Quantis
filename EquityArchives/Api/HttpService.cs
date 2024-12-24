@@ -46,8 +46,14 @@ namespace Visavi.Quantis.Api
                     req.Query.TryGetValue("targetDurations", out var targetDurations);
                     req.Query.TryGetValue("datasetSizeLimit", out var _datasetSizeLimit);
                     req.Query.TryGetValue("algorithm", out var _algorithm);
+                    req.Query.TryGetValue("numberOfTrees", out var _numberOfTrees);
+                    req.Query.TryGetValue("numberOfLeaves", out var _numberOfLeaves);
+                    req.Query.TryGetValue("minimumExampleCountPerLeaf", out var _minimumExampleCountPerLeaf);
                     string? datasetSizeLimit = _datasetSizeLimit.FirstOrDefault();
                     string? algorithm = _algorithm.FirstOrDefault();
+                    string? numberOfTrees = _numberOfTrees.FirstOrDefault();
+                    string? numberOfLeaves = _numberOfLeaves.FirstOrDefault();
+                    string? minimumExampleCountPerLeaf = _minimumExampleCountPerLeaf.FirstOrDefault();
                     int[]? targetDurationsInMonths = targetDurations.FirstOrDefault()?.Split(',')?.Select(stringVal => Convert.ToInt32(stringVal))?.ToArray();
 
                     TrainingAlgorithm? trainingAlgorithm = null;
@@ -63,7 +69,9 @@ namespace Visavi.Quantis.Api
                         };
                     }
 
-                    return await httpPostEquityModel(equityIndex, targetDurationsInMonths, datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null, trainingAlgorithm);
+                    return await httpPostEquityModel(equityIndex, targetDurationsInMonths, datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null, trainingAlgorithm,
+                                                    numberOfTrees != null ? Convert.ToInt32(numberOfTrees) : null, numberOfLeaves != null ? Convert.ToInt32(numberOfLeaves) : null,
+                                                    minimumExampleCountPerLeaf != null ? Convert.ToInt32(minimumExampleCountPerLeaf) : null);
 
                 case "get":
                     return await (id == null ? httpGetModelSummaryList() : httpGetModel(ModelType.Composite, id.Value));
@@ -73,7 +81,8 @@ namespace Visavi.Quantis.Api
             }
         }
 
-        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int[]? targetDurationsInMonths, int? datasetSizeLimit = null, TrainingAlgorithm? algorithm = null)
+        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int[]? targetDurationsInMonths, int? datasetSizeLimit = null, TrainingAlgorithm? algorithm = null,
+                                                                int? numberOfTrees= null, int? numberOfLeaves = null, int? minimumExampleCountPerLeaf = null)
         {
             if (targetDurationsInMonths != null && targetDurationsInMonths.Any(duration => !PricePointPredictor.IsValidDuration(duration)))
             {
@@ -87,9 +96,14 @@ namespace Visavi.Quantis.Api
                                                         TargetDurationsInMonths = targetDurationsInMonths,
                                                         Index = equityIndex,
                                                         DatasetSizeLimit = datasetSizeLimit,
-                                                        Algorithm = algorithm }));
+                                                        Algorithm = algorithm,
+                                                        NumberOfTrees = numberOfTrees,
+                                                        NumberOfLeaves = numberOfLeaves,
+                                                        MinimumExampleCountPerLeaf = minimumExampleCountPerLeaf
+                                                    }));
 
-            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}";
+            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}," +
+                                                                $"Number of Trees: {numberOfTrees}, Number of Leaves: {numberOfLeaves}, Count per Leaf: {minimumExampleCountPerLeaf}";
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
         }

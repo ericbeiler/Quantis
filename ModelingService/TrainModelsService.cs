@@ -39,24 +39,30 @@ namespace Visavi.Quantis.Modeling
 
                     _logger.LogInformation("Waiting for message...");
                     poppedMessage = _queueClient.ReceiveMessage(TimeSpan.FromMinutes(180), cancellationToken).Value;
-                    var queueMessage = decodeMessage(poppedMessage);
-                    if (queueMessage == null)
+                    if (poppedMessage != null)
                     {
-                        _logger.LogInformation("No model message is in the queue, delaying 1 minute.");
-                        await Task.Delay(60000, cancellationToken);
-                        continue;
-                    }
+                        var queueMessage = decodeMessage(poppedMessage);
+                        if (queueMessage == null)
+                        {
+                            _logger.LogInformation("No model message is in the queue, delaying 1 minute.");
+                            await Task.Delay(60000, cancellationToken);
+                            continue;
+                        }
 
-                    _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
-                    if (queueMessage.TrainingParameters == null)
+                        _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
+                        if (queueMessage.TrainingParameters == null)
+                        {
+                            _logger.LogError($"No training parameters found in message {poppedMessage?.MessageId}. Cancelling Message.");
+                            _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
+                            continue;
+                        }
+                        var trainingJob = new ModelTrainingJob(queueMessage.TrainingParameters, _dataServices, _predictionService, _logger, cancellationToken);
+                        await trainingJob.ExecuteAsync();
+                    }
+                    else
                     {
-                        _logger.LogError($"No training parameters found in message {poppedMessage?.MessageId}. Cancelling Message.");
-                        _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
-                        continue;
+                        _logger.LogWarning("Popped an <null> message of the queue.");
                     }
-                    var trainingJob = new ModelTrainingJob(queueMessage.TrainingParameters, _dataServices, _predictionService, _logger, cancellationToken);
-                    await trainingJob.ExecuteAsync();
-
                 }
                 catch (Exception ex)
                 {
