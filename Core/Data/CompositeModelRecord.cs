@@ -7,17 +7,30 @@ using Visavi.Quantis.Modeling;
 
 namespace Visavi.Quantis.Data
 {
+    public enum ModelState
+    {
+        Created,
+        Training,
+        Trained,
+        Failed
+    };
+
     internal class CompositeModelRecord
     {
         public int Id { get; set; }
         public string? Parameters { get; set; }
+        public string? ModelQuality { get; set; }
+        public double? QualityScore { get; set; }
+        public ModelState? State { get; set; } = ModelState.Created;
+        public string? Name { get; set; }
+        public string? Description { get; set; }
     }
 
     public static class CompositeModelExtensions
     {
         internal static string GetName(this CompositeModelRecord model)
         {
-            return $"Composite Model {model.Id}";
+            return $"Model-{model.Id}, {model.State}, {model.QualityScore}";
         }
 
         internal static string GetDescription(this CompositeModelRecord model)

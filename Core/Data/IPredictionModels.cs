@@ -10,5 +10,7 @@ namespace Visavi.Quantis.Data
         Task<IEnumerable<ModelSummary>> GetModelSummaryList(ModelType modelType = ModelType.Composite);
         Task<IPredictor> GetPricePredictor(int id);
         Task SaveModel(string modelName, RegressionModel trainedModel);
+        Task UpdateModelState(int modelId, ModelState modelState);
+        Task UpdateQualityScore(int modelId, double qualityScore);
     }
 }

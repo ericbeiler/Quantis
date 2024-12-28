@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Visavi.Quantis.Modeling;
 
 namespace Visavi.Quantis.Data
 {
@@ -20,5 +21,6 @@ namespace Visavi.Quantis.Data
         public string Name { get; set; }
         public string Description { get; set; }
         public ModelType Type { get; set; }
+        public double QualityScore { get; set; }
     }
 }

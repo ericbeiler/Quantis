@@ -16,11 +16,10 @@ namespace Visavi.Quantis.Modeling
         private IDataServices _dataServices;
         private IPredictionService _predictionService;
 
-        internal ModelTrainingJob(TrainingParameters trainingParameters, IDataServices dataServices, IPredictionService predictionService, 
-                                    ILogger logger, CancellationToken stoppingToken)
+        internal ModelTrainingJob(TrainingParameters trainingParameters, IDataServices dataServices, IPredictionService predictionService, ILogger logger)
         {
             _logger = logger;
-            _stoppingToken = stoppingToken;
+            _stoppingToken = new CancellationToken();
             _trainingParameters = trainingParameters;
             _dataServices = dataServices;
             _predictionService = predictionService;
@@ -41,9 +40,21 @@ namespace Visavi.Quantis.Modeling
                 throw new NullReferenceException("Training Parameters are required to train a model.");
             }
 
+            if (_dataServices == null)
+            {
+                throw new NullReferenceException("Data Services are required to train a model.");
+            }
+
+            if (_trainingParameters.CompositeModelId != null)
+            {
+                await _dataServices.PredictionModels.UpdateModelState(_trainingParameters.CompositeModelId.Value, ModelState.Training);
+            }
+
             var targetDurations = _trainingParameters.TargetDurationsInMonths == null || _trainingParameters.TargetDurationsInMonths.Length == 0
                                         ? TrainingParameters.DefaultDurations : _trainingParameters.TargetDurationsInMonths;
 
+            bool fullyTrained = true;
+            List<RegressionModelQualityMetrics?> cagrModelMetrics = new List<RegressionModelQualityMetrics?>();
             foreach (int targetDuration in targetDurations)
             {
                 try
@@ -53,16 +64,30 @@ namespace Visavi.Quantis.Modeling
                         _logger.LogInformation("Model Training Job was cancelled.");
                         return;
                     }
-                    await generateModel(targetDuration);
+                    var individualModelMetrics = await generateModel(targetDuration);
+                    cagrModelMetrics.Add(individualModelMetrics);
                 }
                 catch (Exception ex)
                 {
+                    fullyTrained = false;
                     _logger.LogError(ex, $"Error training model for {targetDuration} months.");
                 }
             }
 
+            var averageRSquared = cagrModelMetrics.Average(m => m?.RSquared ?? 0);
+            var averagePearsonCorrelation = cagrModelMetrics.Average(m => m?.CrossValidationMetrics?.AveragePearsonCorrelation ?? 0);
+            var averageSpearmanRankCorrelation = cagrModelMetrics.Average(m => m?.CrossValidationMetrics?.AverageSpearmanRankCorrelation ?? 0);
+            var averageMinPearsonCorrelation= cagrModelMetrics.Average(m => m?.CrossValidationMetrics?.MinimumPearsonCorrelation ?? 0);
+            var averageMinSpearmanRankCorrelation = cagrModelMetrics.Average(m => m?.CrossValidationMetrics?.MinimumSpearmanRankCorrelation ?? 0);
+            var qualityScore = Math.Pow(averageRSquared * averagePearsonCorrelation * averageSpearmanRankCorrelation * averageMinPearsonCorrelation * averageMinSpearmanRankCorrelation, 0.2);
+
             try
             {
+                if (_trainingParameters.CompositeModelId != null)
+                {
+                    await _dataServices.PredictionModels.UpdateQualityScore(_trainingParameters.CompositeModelId.Value, qualityScore);
+                    await _dataServices.PredictionModels.UpdateModelState(_trainingParameters.CompositeModelId.Value, fullyTrained ? ModelState.Trained : ModelState.Failed);
+                }
                 await cacheTickerProjections();
             }
             catch (Exception ex)
@@ -72,8 +97,9 @@ namespace Visavi.Quantis.Modeling
             _logger.LogInformation($"Model Training Job completed for Composite {_trainingParameters.CompositeModelId}.");
         }
 
-        private async Task generateModel(int targetDurationInMonths)
+        private async Task<RegressionModelQualityMetrics?> generateModel(int targetDurationInMonths)
         {
+            RegressionModelQualityMetrics? modelQualityMetrics = null;
             try
             {
                 var totalSeconds = MaxTrainingTime.HasValue ? (uint?)Convert.ToUInt32(MaxTrainingTime?.TotalSeconds) : null;
@@ -83,13 +109,14 @@ namespace Visavi.Quantis.Modeling
                                                             _trainingParameters.DatasetSizeLimit, _trainingParameters.NumberOfTrees,
                                                             _trainingParameters.NumberOfLeaves, _trainingParameters.MinimumExampleCountPerLeaf);
                 _ = regressionModel.Train();
-                _ = regressionModel.Evaluate();
+                modelQualityMetrics = regressionModel.Evaluate();
                 await regressionModel.Save();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Unable to generate a model for composite {_trainingParameters.CompositeModelId}");
             }
+            return modelQualityMetrics;
         }
 
         async Task cacheTickerProjections()

@@ -1,6 +1,9 @@
+using Azure;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
+using System.Linq.Expressions;
 using System.Text.Json;
+using System.Threading;
 using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling
@@ -42,44 +45,42 @@ namespace Visavi.Quantis.Modeling
                     if (poppedMessage != null)
                     {
                         var queueMessage = decodeMessage(poppedMessage);
+
+                        // Check the message is a valid queue message
                         if (queueMessage == null)
                         {
-                            _logger.LogInformation("No model message is in the queue, delaying 1 minute.");
-                            await Task.Delay(60000, cancellationToken);
+                            _logger.LogWarning($"{poppedMessage?.MessageId} is not in a valid format. Deleting...");
+                            await deleteQueueMessage(poppedMessage, cancellationToken);
+                            continue;
+                        }
+                        _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
+
+                        // Check the message is a valid training message
+                        if (queueMessage?.TrainingParameters == null)
+                        {
+                            _logger.LogError($"No training parameters found in message {poppedMessage?.MessageId}. Cancelling Message.");
+                            await deleteQueueMessage(poppedMessage, cancellationToken);
                             continue;
                         }
 
-                        _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
-                        if (queueMessage.TrainingParameters == null)
-                        {
-                            _logger.LogError($"No training parameters found in message {poppedMessage?.MessageId}. Cancelling Message.");
-                            _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
-                            continue;
-                        }
-                        var trainingJob = new ModelTrainingJob(queueMessage.TrainingParameters, _dataServices, _predictionService, _logger, cancellationToken);
+                        // Run Training
+                        _logger.LogError($"Training commenced for message {poppedMessage?.MessageId}.");
+                        var trainingJob = new ModelTrainingJob(queueMessage.TrainingParameters, _dataServices, _predictionService, _logger);
                         await trainingJob.ExecuteAsync();
+
+                        _logger.LogInformation($"Deleting message {poppedMessage?.MessageId}.");
+                        await deleteQueueMessage(poppedMessage, cancellationToken);
                     }
                     else
                     {
-                        _logger.LogWarning("Popped an <null> message of the queue.");
+                        _logger.LogInformation("No model message is in the queue, delaying 1 minute.");
+                        await Task.Delay(60000, cancellationToken);
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, $"Could not build model for message {poppedMessage?.MessageId}\n{ex.ToString()}.");
-                    _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
-                }
-                finally
-                {
-                    try
-                    {
-                        _logger.LogInformation($"Deleting message {poppedMessage?.MessageId}.");
-                        _queueClient.DeleteMessage(poppedMessage?.MessageId, poppedMessage?.PopReceipt, cancellationToken);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, $"Unable to Delete Message {poppedMessage?.MessageId}.");
-                    }
+                    await deleteQueueMessage(poppedMessage, cancellationToken);
                 }
             }
             _logger.LogInformation("Model Training Service Stopped at: {time}", DateTime.Now);
@@ -101,6 +102,23 @@ namespace Visavi.Quantis.Modeling
 
             _logger.LogInformation($"Received message: {messageBody}");
             return JsonSerializer.Deserialize<TrainModelMessage>(messageBody);
+        }
+
+        private async Task<Response?> deleteQueueMessage(QueueMessage? message, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (message != null)
+                {
+                    _logger.LogInformation($"Deleting message {message?.MessageId}");
+                    return await _queueClient.DeleteMessageAsync(message?.MessageId, message?.PopReceipt, cancellationToken);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Could not delete message {message?.MessageId}");
+            }
+            return null;
         }
     }
 }

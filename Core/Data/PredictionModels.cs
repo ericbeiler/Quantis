@@ -11,6 +11,7 @@ namespace Visavi.Quantis.Data
         private const string equityModelsContainer = "equity-models";
         private const string retrieveCagrRegressionModels = "SELECT * FROM CagrRegressionModels";
         private const string retrieveCompositeModels = "SELECT * FROM CompositeModels";
+        private const ModelState createdModelState = ModelState.Created;
 
         ILogger _logger;
         Connections _connections;
@@ -25,7 +26,7 @@ namespace Visavi.Quantis.Data
         {
             using var dbConnection = _connections.DbConnection;
             var jsonTrainingParameters = JsonSerializer.Serialize(trainingParameters);
-            return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Parameters]) Values (@jsonTrainingParameters); SELECT SCOPE_IDENTITY()", new { jsonTrainingParameters });
+            return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Parameters], [State]) Values (@jsonTrainingParameters, @createdModelState); SELECT SCOPE_IDENTITY()", new { jsonTrainingParameters, createdModelState });
         }
 
         public async Task<CompositeModel> GetCompositeModel(int compositeModelId)
@@ -38,7 +39,7 @@ namespace Visavi.Quantis.Data
             }
             var trainingParameters = JsonSerializer.Deserialize<TrainingParameters>(jsonTrainingParameters);
 
-            var predictionModelSummaries = await dbConnection.QueryAsync<CagrRegressionModel>("SELECT * FROM CagrRegressionModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
+            var predictionModelSummaries = await dbConnection.QueryAsync<CagrRegressionModelRecord>("SELECT * FROM CagrRegressionModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
             var pricePredictors = await Task.WhenAll(predictionModelSummaries.Select(async modelSummary => await getPricePredictor(modelSummary)));
 
             return new CompositeModel(trainingParameters, pricePredictors);
@@ -54,7 +55,7 @@ namespace Visavi.Quantis.Data
                     return compositeModels.Select(model => model.ToModelSummary());
 
                 case ModelType.CagrRegression:
-                    var regressionModels = await dbConnection.QueryAsync<CagrRegressionModel>(retrieveCagrRegressionModels);
+                    var regressionModels = await dbConnection.QueryAsync<CagrRegressionModelRecord>(retrieveCagrRegressionModels);
                     return regressionModels.Select(model => model.ToModelSummary());
 
                 default:
@@ -65,7 +66,7 @@ namespace Visavi.Quantis.Data
         public async Task<IPredictor> GetPricePredictor(int id)
         {
             using var dbConnection = _connections.DbConnection;
-            var modelSummary = await dbConnection.QueryFirstOrDefaultAsync<CagrRegressionModel>("SELECT * FROM CagrRegressionModels WHERE Id = @Id", new { Id = id });
+            var modelSummary = await dbConnection.QueryFirstOrDefaultAsync<CagrRegressionModelRecord>("SELECT * FROM CagrRegressionModels WHERE Id = @Id", new { Id = id });
             if (modelSummary == null)
             {
                 throw new KeyNotFoundException($"Model with id {id} not found.");
@@ -74,7 +75,7 @@ namespace Visavi.Quantis.Data
             return await getPricePredictor(modelSummary);
         }
 
-        private async Task<IPredictor> getPricePredictor(CagrRegressionModel modelSummary)
+        private async Task<IPredictor> getPricePredictor(CagrRegressionModelRecord modelSummary)
         {
             if (modelSummary == null)
             {
@@ -106,11 +107,15 @@ namespace Visavi.Quantis.Data
 
             _logger?.LogInformation("Saved Model, updating metadata");
             using var connection = _connections.DbConnection;
-            await connection.ExecuteAsync("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared])" +
-                                    "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @CompositeId, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared)",
+            await connection.ExecuteAsync("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared]," +
+                                            "[AveragePearsonCorrelation],[MinimumPearsonCorrelation],[AverageSpearmanRankCorrelation],[MinimumSpearmanRankCorrelation],[CrossValAverageMeanAbsoluteError],[CrossValMaximumMeanAbsoluteError]," +
+                                            "[CrossValAverageRootMeanSquaredError],[CrossValMaximumRootMeanSquaredError],[CrossValAverageRSquared],[CrossValMaximumRSquared])" +
+                                            "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @CompositeId, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared," +
+                                            "@AveragePearsonCorrelation, @MinimumPearsonCorrelation, @AverageSpearmanRankCorrelation, @MinimumSpearmanRankCorrelation, @CrossValAverageMeanAbsoluteError, @CrossValMaximumMeanAbsoluteError," +
+                                            "@CrossValAverageRootMeanSquaredError, @CrossValMaximumRootMeanSquaredError, @CrossValAverageRSquared, @CrossValMaximumRSquared)",
                                     new
                                     {
-                                        Type = "Regression",
+                                        Type = ModelType.CagrRegression.ToString(),
                                         Index = regressionModel.IndexTicker,
                                         TargetDuration = regressionModel.TargetDurationInMonths,
                                         Timestamp = regressionModel.Timestamp,
@@ -119,8 +124,46 @@ namespace Visavi.Quantis.Data
                                         MeanAbsoluteError = regressionModel?.Metrics?.MeanAbsoluteError,
                                         RootMeanSquaredError = regressionModel?.Metrics?.RootMeanSquaredError,
                                         LossFunction = regressionModel?.Metrics?.LossFunction,
-                                        RSquared = regressionModel?.Metrics?.RSquared
+                                        RSquared = regressionModel?.Metrics?.RSquared,
+                                        AveragePearsonCorrelation = regressionModel?.Metrics?.CrossValidationMetrics?.AveragePearsonCorrelation,
+                                        MinimumPearsonCorrelation = regressionModel?.Metrics?.CrossValidationMetrics?.MinimumPearsonCorrelation,
+                                        AverageSpearmanRankCorrelation = regressionModel?.Metrics?.CrossValidationMetrics?.AverageSpearmanRankCorrelation,
+                                        MinimumSpearmanRankCorrelation = regressionModel?.Metrics?.CrossValidationMetrics?.MinimumSpearmanRankCorrelation,
+                                        CrossValAverageMeanAbsoluteError = regressionModel?.Metrics?.CrossValidationMetrics?.AverageMeanAbsoluteError,
+                                        CrossValMaximumMeanAbsoluteError = regressionModel?.Metrics?.CrossValidationMetrics?.MaximumMeanAbsoluteError,
+                                        CrossValAverageRootMeanSquaredError = regressionModel?.Metrics?.CrossValidationMetrics?.AverageRootMeanSquaredError,
+                                        CrossValMaximumRootMeanSquaredError = regressionModel?.Metrics?.CrossValidationMetrics?.MaximumRootMeanSquaredError,
+                                        CrossValAverageRSquared = regressionModel?.Metrics?.CrossValidationMetrics?.AverageRSquared,
+                                        CrossValMaximumRSquared = regressionModel?.Metrics?.CrossValidationMetrics?.MaximumRSquared
                                     });
+        }
+
+        public async Task UpdateModelState(int modelId, ModelState modelState)
+        {
+            try
+            {
+                using var connection = _connections.DbConnection;
+                await connection.ExecuteAsync("UPDATE CompositeModels SET State = @ModelState WHERE Id = @Id", new { ModelState = modelState, Id = modelId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error updating model state for model {modelId} to {modelState}");
+                throw;
+            }
+        }
+
+        public async Task UpdateQualityScore(int modelId, double qualityScore)
+        {
+            try
+            {
+                using var connection = _connections.DbConnection;
+                await connection.ExecuteAsync("UPDATE CompositeModels SET QualityScore = @QualityScore WHERE Id = @Id", new { QualityScore = qualityScore, Id = modelId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error updating quality score for model {modelId} to {qualityScore}");
+                throw;
+            }
         }
     }
 }

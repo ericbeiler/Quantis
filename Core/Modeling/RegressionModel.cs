@@ -2,20 +2,28 @@
 using Microsoft.ML.Data;
 using Microsoft.ML.AutoML;
 using System.Text;
-using Visavi.Quantis.Modeling;
 using static Microsoft.ML.DataOperationsCatalog;
 using Microsoft.ML;
 using Microsoft.ML.Runtime;
+using Visavi.Quantis.Data;
+using static Microsoft.ML.TrainCatalogBase;
+using Tensorflow;
 
-namespace Visavi.Quantis.Data
+namespace Visavi.Quantis.Modeling
 {
     public class RegressionModel
     {
+        private class PredictionResult
+        {
+            public float Score { get; set; }
+        }
+
+        private const int defaultCrossValidationFolds = 4;
         private const int defaultNumberOfTrees = 100;
         private const int defaultNumberOfLeaves = 50;
         private const int defaultMinimumExampleCountPerLeaf = 30;
 
-        private const double testSampling = 0.2;
+        private const double defaultTestSampling = 0.2;
         private const string datetimeTagFormat = "yyMMddHHmm";
 
         private const int defaultMaxTrainingTimeInSeconds = 300;
@@ -39,6 +47,7 @@ namespace Visavi.Quantis.Data
         private readonly int _numberOfTrees;
         private readonly int _numberOfLeaves;
         private readonly int _minimumExampleCountPerLeaf;
+        private IReadOnlyList<TrainCatalogBase.CrossValidationResult<RegressionMetrics>> _crossValidationResults;
 
         public RegressionModel(IDataServices dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null,
                                 uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit = null, int? numberOfTrees = null, int? numberOfLeaves = null, int? minimumExampleCountPerLeaf = null)
@@ -60,13 +69,13 @@ namespace Visavi.Quantis.Data
         }
 
         public int? CompositeId { get; }
-        public DateTime Timestamp { get; } 
+        public DateTime Timestamp { get; }
         public string IndexTicker { get; }
         public int TargetDurationInMonths { get; }
         public TrainingAlgorithm TrainingAlgorithm { get; }
         public DataViewSchema? TrainingSchema => _modelingDataset?.Schema;
         public ITransformer? Predictor { get; private set; }
-        public RegressionMetrics? Metrics { get; private set; }
+        public RegressionModelQualityMetrics? Metrics { get; private set; }
 
         private TrainTestData _trainAndTestData;
 
@@ -124,14 +133,29 @@ namespace Visavi.Quantis.Data
         private ITransformer buildFastTreeModel()
         {
             var dataProcessPipeline = buildDataPipeline();
-            var trainer = _mlContext.Regression.Trainers.FastTree(numberOfTrees: _numberOfTrees,  numberOfLeaves: _numberOfLeaves, minimumExampleCountPerLeaf: _minimumExampleCountPerLeaf);
+            var trainer = _mlContext.Regression.Trainers.FastTree(numberOfTrees: _numberOfTrees, numberOfLeaves: _numberOfLeaves, minimumExampleCountPerLeaf: _minimumExampleCountPerLeaf);
 
             var trainingPipeline = dataProcessPipeline.Append(trainer);
+
+            // Log start of cross-validation
+            _logger.LogInformation($"Performing Cross-Validation, Index: {IndexTicker}, Target Duration: {TargetDurationInMonths}");
+
+            // Perform cross-validation
+            _crossValidationResults = _mlContext.Regression.CrossValidate(
+                            data: _trainAndTestData.TrainSet,
+                            estimator: trainingPipeline,
+                            numberOfFolds: defaultCrossValidationFolds
+                        );
+
+            // Log cross-validation metrics
+            foreach (var result in _crossValidationResults)
+            {
+                _logger.LogInformation($"Fold: {result.Fold}, R^2: {result.Metrics.RSquared}, RMSE: {result.Metrics.RootMeanSquaredError}");
+            }
 
             // Training the model
             _logger.LogInformation($"Training Model, Index: {IndexTicker}, Target Duration: {TargetDurationInMonths}");
 
-            // _mlContext.Regression.CrossValidate(_modelingDataset, trainingPipeline, numberOfFolds: 4);
             return trainingPipeline.Fit(_trainAndTestData.TrainSet);
         }
 
@@ -169,7 +193,18 @@ namespace Visavi.Quantis.Data
             }
         }
 
-        public RegressionMetrics Evaluate()
+        private float calculatePearsonCorrelation(float[] x, float[] y)
+        {
+            var meanX = x.Average();
+            var meanY = y.Average();
+
+            var numerator = x.Zip(y, (xi, yi) => (xi - meanX) * (yi - meanY)).Sum();
+            var denominator = Math.Sqrt(x.Sum(xi => Math.Pow(xi - meanX, 2)) * y.Sum(yi => Math.Pow(yi - meanY, 2)));
+
+            return (float)(numerator / denominator);
+        }
+
+        public RegressionModelQualityMetrics Evaluate()
         {
             DateTime evaluationStart = DateTime.Now;
             if (Predictor == null)
@@ -180,11 +215,71 @@ namespace Visavi.Quantis.Data
             // Testing the model
             _logger.LogInformation($"Testing Model:");
             IDataView predictions = Predictor.Transform(_trainAndTestData.TestSet);
-            Metrics = _mlContext.Regression.Evaluate(predictions, labelColumnName: "Label", scoreColumnName: "Score");
+            var modelMetrics = _mlContext.Regression.Evaluate(predictions, labelColumnName: "Label", scoreColumnName: "Score");
+            var crossValidationMetrics = runCrossValidationAnalysis();
+            Metrics = new RegressionModelQualityMetrics(modelMetrics, crossValidationMetrics);
 
             int testingMinutes = Convert.ToInt32(Math.Ceiling((DateTime.Now - evaluationStart).TotalMinutes));
             _logger.LogInformation($"Completed Testing in {testingMinutes} minute(s):\n\tRoot Mean Squared Error: {Metrics.RootMeanSquaredError}\n\tAbsolute Error: {Metrics.MeanAbsoluteError}\n\tR Squared: {Metrics.RSquared}");
             return Metrics;
+        }
+        private float calculateSpearmanRankCorrelation(float[] x, float[] y)
+        {
+            // Get ranks for both prediction arrays
+            var rankX = getRanksForSpearmanCorrelation(x);
+            var rankY = getRanksForSpearmanCorrelation(y);
+
+            // Calculate the Spearman Rank Correlation
+            int n = rankX.Length;
+            float sumOfSquaredRankDifferences = 0;
+
+            for (int i = 0; i < n; i++)
+            {
+                float difference = rankX[i] - rankY[i];
+                sumOfSquaredRankDifferences += difference * difference;
+            }
+
+            var spearmanRankCorrelation = 1 - (6 * sumOfSquaredRankDifferences) / (n * (n * n - 1));
+            if (spearmanRankCorrelation < -1)
+            {
+                _logger.LogWarning("Spearman Rank Correlation is less than -1.");
+                _logger.LogInformation($"X Count: {x.Length}, Y Count: {y.Length}, RankX Count: {rankX.Length}, RankY Count: {rankY.Length}");
+            }
+
+            return spearmanRankCorrelation;
+        }
+
+        private float[] getRanksForSpearmanCorrelation(float[] values)
+        {
+            // Rank the values with ties handled
+            var indexedValues = values.Select((value, index) => new { Value = value, Index = index })
+                                      .OrderBy(x => x.Value)
+                                      .ToArray();
+
+            float[] ranks = new float[values.Length];
+            int i = 0;
+
+            while (i < indexedValues.Length)
+            {
+                int start = i;
+
+                // Find all tied values
+                while (i + 1 < indexedValues.Length && indexedValues[i + 1].Value == indexedValues[i].Value)
+                {
+                    i++;
+                }
+
+                // Assign the average rank for tied values
+                float rank = (start + i + 2) / 2.0f; // Average of positions (rank starts at 1)
+                for (int j = start; j <= i; j++)
+                {
+                    ranks[indexedValues[j].Index] = rank;
+                }
+
+                i++;
+            }
+
+            return ranks;
         }
 
         private void logMlMessage(ChannelMessageKind messageType, string message)
@@ -206,6 +301,78 @@ namespace Visavi.Quantis.Data
                 default:
                     // do nothing
                     break;
+            }
+        }
+
+        private CrossValidationMetrics runCrossValidationAnalysis()
+        {
+            if (_crossValidationResults == null)
+            {
+                throw new InvalidOperationException("Cross-Validation Results are not available.");
+            }
+
+            try
+            {
+                // Store predictions from each model
+                var predictionsList = new List<float[]>();
+
+                foreach (var result in _crossValidationResults)
+                {
+                    var model = result.Model;
+
+                    // Predict on the same dataset for all models
+                    var transformedData = model.Transform(_trainAndTestData.TestSet);
+                    var predictions = _mlContext.Data.CreateEnumerable<PredictionResult>(
+                        transformedData, reuseRowObject: false
+                    )
+                    .Select(pred => pred.Score)
+                    .ToArray();
+
+                    predictionsList.Add(predictions);
+                }
+
+                List<float> pearsonCorrelations = new List<float>();
+                List<float> spearmanRankCorrelations = new List<float>();
+
+                // Compare predictions between models
+                for (int i = 0; i < predictionsList.Count; i++)
+                {
+                    for (int j = i + 1; j < predictionsList.Count; j++)
+                    {
+                        var pearsonCorrelation = calculatePearsonCorrelation(predictionsList[i], predictionsList[j]);
+                        _logger.LogInformation($"Pearson Correlation between Model {i} and Model {j}: {pearsonCorrelation}");
+                        pearsonCorrelations.Add(pearsonCorrelation);
+
+                        var spearmanRankCorrelation = calculateSpearmanRankCorrelation(predictionsList[i], predictionsList[j]);
+                        _logger.LogInformation($"Spearman Rank Correlation between Model {i} and Model {j}: {spearmanRankCorrelation}");
+                        spearmanRankCorrelations.Add(spearmanRankCorrelation);
+                    }
+                }
+
+                // Log cross-validation metrics
+                foreach (var result in _crossValidationResults)
+                {
+                    _logger.LogInformation($"Fold: {result.Fold}, R^2: {result.Metrics.RSquared}, RMSE: {result.Metrics.RootMeanSquaredError}");
+                }
+
+                return new CrossValidationMetrics()
+                {
+                    AveragePearsonCorrelation = pearsonCorrelations.Average(),
+                    MinimumPearsonCorrelation = pearsonCorrelations.Min(),
+                    AverageSpearmanRankCorrelation = spearmanRankCorrelations.Average(),
+                    MinimumSpearmanRankCorrelation = spearmanRankCorrelations.Min(),
+                    AverageMeanAbsoluteError = _crossValidationResults.Average(result => result.Metrics.MeanAbsoluteError),
+                    MaximumMeanAbsoluteError = _crossValidationResults.Max(result => result.Metrics.MeanAbsoluteError),
+                    AverageRootMeanSquaredError = _crossValidationResults.Average(result => result.Metrics.RootMeanSquaredError),
+                    MaximumRootMeanSquaredError = _crossValidationResults.Max(result => result.Metrics.RootMeanSquaredError),
+                    AverageRSquared = _crossValidationResults.Average(result => result.Metrics.RSquared),
+                    MaximumRSquared = _crossValidationResults.Max(result => result.Metrics.RSquared)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error evaluating cross-validation model agreement.");
+                throw;
             }
         }
 
@@ -238,7 +405,7 @@ namespace Visavi.Quantis.Data
             sb.Append("---------");
             _logger.LogInformation(sb.ToString());
 
-            _trainAndTestData = _mlContext.Data.TrainTestSplit(_modelingDataset, testFraction: testSampling);
+            _trainAndTestData = _mlContext.Data.TrainTestSplit(_modelingDataset, testFraction: defaultTestSampling);
 
             // Building and Training the Model
             switch (TrainingAlgorithm)
@@ -264,3 +431,146 @@ namespace Visavi.Quantis.Data
 
     }
 }
+
+// TODO: Add this functionality
+/*
+ * To measure how well cross-validated models infer each other's outputs, you can evaluate **agreement or consistency** between the models across folds. This process involves:
+
+1. Generating predictions from each model for a common dataset (e.g., the validation data from all folds or an entirely separate dataset).
+2. Comparing these predictions across folds to assess how similar or consistent they are.
+
+Here’s how you can implement and analyze this:
+
+---
+
+### **Approach: Agreement Between Models**
+1. **Generate Predictions from Each Model**:
+   - After performing cross-validation, use each fold’s model to predict on the same dataset (e.g., all training data or a holdout test set).
+
+2. **Measure Agreement**:
+   - Calculate agreement metrics like:
+     - **Correlation** (e.g., Pearson or Spearman correlation) between predictions of different models.
+     - **Mean Absolute Difference** or **Root Mean Squared Difference** between predictions.
+     - **Ranking Consistency**: Compare how models rank instances (important in financial modeling where relative ranking matters).
+
+3. **Visualize Agreement**:
+   - Use scatter plots or heatmaps to visualize the correlation or agreement between predictions from different models.
+
+---
+
+### **Implementation Example**
+
+```csharp
+private void EvaluateCrossValidationModelAgreement(IDataView dataToEvaluate)
+{
+    var dataProcessPipeline = buildDataPipeline();
+    var trainer = _mlContext.Regression.Trainers.FastTree(
+        numberOfTrees: _numberOfTrees,
+        numberOfLeaves: _numberOfLeaves,
+        minimumExampleCountPerLeaf: _minimumExampleCountPerLeaf
+    );
+
+    var trainingPipeline = dataProcessPipeline.Append(trainer);
+
+    // Perform cross-validation
+    var crossValidationResults = _mlContext.Regression.CrossValidate(
+        data: _trainAndTestData.TrainSet,
+        estimator: trainingPipeline,
+        numberOfFolds: 4
+    );
+
+    // Store predictions from each model
+    var predictionsList = new List<float[]>();
+
+    foreach (var result in crossValidationResults)
+    {
+        var model = result.Model;
+
+        // Predict on the same dataset for all models
+        var transformedData = model.Transform(dataToEvaluate);
+        var predictions = _mlContext.Data.CreateEnumerable<PredictionResult>(
+            transformedData, reuseRowObject: false
+        )
+        .Select(pred => pred.Score)
+        .ToArray();
+
+        predictionsList.Add(predictions);
+    }
+
+    // Compare predictions between models
+    for (int i = 0; i < predictionsList.Count; i++)
+    {
+        for (int j = i + 1; j < predictionsList.Count; j++)
+        {
+            var correlation = CalculatePearsonCorrelation(predictionsList[i], predictionsList[j]);
+            _logger.LogInformation($"Correlation between Model {i} and Model {j}: {correlation}");
+        }
+    }
+}
+
+private float CalculatePearsonCorrelation(float[] x, float[] y)
+{
+    var meanX = x.Average();
+    var meanY = y.Average();
+
+    var numerator = x.Zip(y, (xi, yi) => (xi - meanX) * (yi - meanY)).Sum();
+    var denominator = Math.Sqrt(x.Sum(xi => Math.Pow(xi - meanX, 2)) * y.Sum(yi => Math.Pow(yi - meanY, 2)));
+
+    return (float)(numerator / denominator);
+}
+
+public class PredictionResult
+{
+    public float Score { get; set; }
+}
+```
+
+---
+
+### **Explanation of Code**:
+1. **Cross-Validation**:
+   - Perform cross-validation and store each fold's model in `crossValidationResults`.
+
+2. **Generate Predictions**:
+   - Use each fold's model to predict on the same dataset (`dataToEvaluate`), and store the predictions in a list.
+
+3. **Calculate Agreement**:
+   - Compare predictions between each pair of models using a similarity metric like **Pearson correlation**.
+
+4. **Log Results**:
+   - Log correlation values to evaluate agreement between models.
+
+---
+
+### **Metrics for Agreement**:
+- **Pearson Correlation Coefficient**:
+   Measures linear relationship between two sets of predictions.
+   - Values close to 1 indicate strong agreement.
+   - Values close to 0 indicate little or no linear relationship.
+- **Mean Absolute Difference**:
+   Average absolute difference between predictions.
+   - Lower values indicate higher agreement.
+- **Spearman Rank Correlation**:
+   Compares relative rankings of predictions (useful for financial modeling).
+
+---
+
+### **Benefits of This Approach**:
+1. **Consistency Check**:
+   - High agreement suggests that the model is stable and generalizes well across folds.
+2. **Insight into Variance**:
+   - Low agreement could indicate high variance or sensitivity to specific training subsets.
+
+---
+
+### **Visualization Ideas**:
+- **Scatter Plots**:
+   Compare predictions for two models with a scatter plot.
+- **Heatmap**:
+   Visualize pairwise correlation coefficients across all models.
+- **Box Plot**:
+   Show the distribution of prediction differences across folds.
+
+This approach helps assess the robustness and consistency of your cross-validated models, which is critical in financial modeling tasks.
+
+*/
