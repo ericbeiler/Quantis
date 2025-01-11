@@ -35,6 +35,7 @@ namespace Visavi.Quantis.Modeling
 
         internal async Task ExecuteAsync()
         {
+            _logger.LogInformation($"Executing Training Job, {_trainingParameters}");
             if (_trainingParameters == null)
             {
                 throw new NullReferenceException("Training Parameters are required to train a model.");
@@ -107,7 +108,8 @@ namespace Visavi.Quantis.Modeling
                                                             _trainingParameters.Algorithm ?? TrainingAlgorithm.FastTree,
                                                             _trainingParameters.CompositeModelId, totalSeconds,
                                                             _trainingParameters.DatasetSizeLimit, _trainingParameters.NumberOfTrees,
-                                                            _trainingParameters.NumberOfLeaves, _trainingParameters.MinimumExampleCountPerLeaf);
+                                                            _trainingParameters.NumberOfLeaves, _trainingParameters.MinimumExampleCountPerLeaf,
+                                                            _trainingParameters.Granularity);
                 _ = regressionModel.Train();
                 modelQualityMetrics = regressionModel.Evaluate();
                 await regressionModel.Save();

@@ -1,7 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.ML;
-using System;
-using System.Collections.Frozen;
 using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling

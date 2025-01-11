@@ -9,7 +9,7 @@ namespace Visavi.Quantis.Data
         Task<List<string>> GetEquityTickers(string? equityIndex = null);
         Task<DailyEquityRecord> GetEquityRecordAsync(string ticker, DateTime? date = null);
         Task<DateTime> GetLastUpdateAsync();
-        DatabaseSource GetTrainingDataQuerySource(string indexTicker, int targetDuration, int? datasetSizeLimit = null);
+        DatabaseSource GetTrainingDataQuerySource(string indexTicker, int targetDuration, TrainingGranularity grainularity, int? datasetSizeLimit = null);
         Task<Index[]> GetIndeces();
         Task<bool> IsIndexTicker(string ticker);
     }

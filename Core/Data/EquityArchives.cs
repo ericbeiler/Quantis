@@ -38,6 +38,13 @@ namespace Visavi.Quantis.Data
         private readonly Connections _connections;
         private readonly ILogger _logger;
 
+        private readonly Dictionary<TrainingGranularity, string> equityTrainingTables = new Dictionary<TrainingGranularity, string>()
+        {
+            { TrainingGranularity.Daily, "EquityHistory" },
+            { TrainingGranularity.Weekly, "EquityArchivesWeekly" },
+            { TrainingGranularity.Monthly, "EquityArchivesMonthly" }
+        };
+        
         public EquityArchives(Connections connections, ILogger logger)
         {
             _connections = connections;
@@ -89,14 +96,15 @@ namespace Visavi.Quantis.Data
             return (await connection.QueryAsync<DateTime>("Select Top 1 [Date] from EquityHistory order by [Date] desc")).FirstOrDefault();
         }
 
-        public DatabaseSource GetTrainingDataQuerySource(string indexTicker, int targetDuration, int? datasetSizeLimit)
+        public DatabaseSource GetTrainingDataQuerySource(string indexTicker, int targetDuration, TrainingGranularity granularity, int? datasetSizeLimit)
         {
-            return new DatabaseSource(SqlClientFactory.Instance, _connections.DbConnectionString, getTrainModelQuery(indexTicker, targetDuration, datasetSizeLimit), timeoutInSeconds);
+            return new DatabaseSource(SqlClientFactory.Instance, _connections.DbConnectionString, getTrainModelQuery(indexTicker, targetDuration, granularity, datasetSizeLimit), timeoutInSeconds);
         }
 
-        private string getTrainModelQuery(string indexTicker, int targetDurationInMonths, int? datasetSizeLimit = null)
+        private string getTrainModelQuery(string indexTicker, int targetDurationInMonths, TrainingGranularity granularity = TrainingGranularity.Daily, int? datasetSizeLimit = null)
         {
             int targetDuraionInYears = targetDurationInMonths / 12;
+            string sourceTable = equityTrainingTables[granularity];
 
             var indexFilter = "";
             var sizeLimiter = datasetSizeLimit != null ? $"TOP {datasetSizeLimit}" : "";
@@ -111,9 +119,26 @@ namespace Visavi.Quantis.Data
                     )";
             }
 
+            string timestampColumns = "";
+            switch (granularity)
+            {
+                case TrainingGranularity.Monthly:
+                    timestampColumns = "Year,Month";
+                    break;
+
+                case TrainingGranularity.Weekly:
+                    // TODO: Implement weekly granularity
+                    break;
+
+                default:
+                    timestampColumns = "[Date]";
+                    break;
+            }
+
+            _logger.LogInformation($"Retrieving Trining Data: Scope: {indexTicker}, Duration: {targetDurationInMonths}, Granularity: {granularity}, Size Limit: {datasetSizeLimit}");
             return $@"
                         SELECT  {sizeLimiter} Ticker, 
-                                [Date], 
+                                {timestampColumns}, 
                                 CAST(MarketCap AS REAL) AS MarketCap,
                                 CAST(PriceToEarningsQuarterly AS REAL) AS PriceToEarningsQuarterly,
                                 CAST(PriceToEarningsTTM AS REAL) AS PriceToEarningsTTM,
@@ -132,7 +157,7 @@ namespace Visavi.Quantis.Data
                                 CAST(DividendYield AS REAL) AS DividendYield,
                                 CAST(PriceToEarningsAdjusted AS REAL) AS PriceToEarningsAdjusted,
                                 CAST(Y{targetDuraionInYears}Cagr AS REAL) AS Cagr
-                        FROM EquityHistory
+                        FROM {sourceTable}
                         WHERE [Y{targetDuraionInYears}Cagr] IS NOT NULL AND [Y{targetDuraionInYears}Cagr] > {minCagr} AND [Y{targetDuraionInYears}Cagr] < {maxCagr}
                                 AND MarketCap IS NOT NULL AND MarketCap > {MinMarketCap} AND MarketCap < {maxMarketCap}
                                 AND PriceToEarningsQuarterly IS NOT NULL AND PriceToEarningsQuarterly > {MinPriceToEarnings} AND PriceToEarningsQuarterly < {MaxPriceToEarnings}

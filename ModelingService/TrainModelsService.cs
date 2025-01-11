@@ -64,7 +64,7 @@ namespace Visavi.Quantis.Modeling
                         }
 
                         // Run Training
-                        _logger.LogError($"Training commenced for message {poppedMessage?.MessageId}.");
+                        _logger.LogError($"Training commenced for message {poppedMessage?.MessageId}, {queueMessage.TrainingParameters}");
                         var trainingJob = new ModelTrainingJob(queueMessage.TrainingParameters, _dataServices, _predictionService, _logger);
                         await trainingJob.ExecuteAsync();
 

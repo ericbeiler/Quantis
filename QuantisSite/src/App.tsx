@@ -2,7 +2,7 @@
 
 import PredictionGrid from "./components/PredictionGrid";
 import ModelSelector from "./components/ModelSelector";
-import ConfigureModelModal from "./components/ConfigureModelModal";
+import ConfigureModelModal, { TrainingGranularity } from "./components/ConfigureModelModal";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
@@ -11,12 +11,13 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleBuildModel = async (parameters: {
+    trainingGranularity: TrainingGranularity;
     numberOfTrees: number;
     numberOfLeaves: number;
     minimumExampleCountPerLeaf: number;
   }) => {
     try {
-      const response = await fetch(`${serverUrl}api/Model?equityIndex=SPY&numberOfTrees=${parameters.numberOfTrees}&numberOfLeaves=${parameters.numberOfLeaves}&minimumExampleCountPerLeaf=${parameters.minimumExampleCountPerLeaf}`, {
+      const response = await fetch(`${serverUrl}api/Model?equityIndex=SPY&granularity=${parameters.trainingGranularity}&numberOfTrees=${parameters.numberOfTrees}&numberOfLeaves=${parameters.numberOfLeaves}&minimumExampleCountPerLeaf=${parameters.minimumExampleCountPerLeaf}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parameters),
@@ -24,7 +25,7 @@ function App() {
       if (!response.ok) {
         throw new Error("Failed to build the model");
       }
-      alert("Model built successfully!");
+      alert("Model queued for training.");
     } catch (error) {
       alert("Error: " + error);
     }

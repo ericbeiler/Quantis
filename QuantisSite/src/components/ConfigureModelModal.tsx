@@ -1,5 +1,11 @@
 import React, { useState } from "react";
 
+export enum TrainingGranularity {
+  Daily = "Daily",
+  Weekly = "Weekly",
+  Monthly = "Monthly",
+}
+
 interface ConfigureModelModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -7,6 +13,7 @@ interface ConfigureModelModalProps {
     numberOfTrees: number;
     numberOfLeaves: number;
     minimumExampleCountPerLeaf: number;
+    trainingGranularity: TrainingGranularity;
   }) => void;
 }
 
@@ -19,6 +26,7 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
     numberOfTrees: 100,
     numberOfLeaves: 20,
     minimumExampleCountPerLeaf: 1,
+    trainingGranularity: TrainingGranularity.Daily,
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,7 +37,15 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setParameters((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+const handleSubmit = () => {
     onSubmit(parameters);
     onClose();
   };
@@ -40,6 +56,23 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="w-96 rounded-lg bg-white p-6 shadow-lg">
         <h2 className="mb-4 text-xl font-bold">Configure Model</h2>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Training Granularity
+          </label>
+          <select
+            name="trainingGranularity"
+            value={parameters.trainingGranularity}
+            onChange={handleSelectChange}
+            className="mt-1 w-full rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500"
+          >
+            {Object.values(TrainingGranularity).map((granularity) => (
+              <option key={granularity} value={granularity}>
+                {granularity}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700">
             Number of Trees

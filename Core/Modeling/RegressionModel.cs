@@ -8,6 +8,7 @@ using Microsoft.ML.Runtime;
 using Visavi.Quantis.Data;
 using static Microsoft.ML.TrainCatalogBase;
 using Tensorflow;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
 namespace Visavi.Quantis.Modeling
 {
@@ -47,10 +48,12 @@ namespace Visavi.Quantis.Modeling
         private readonly int _numberOfTrees;
         private readonly int _numberOfLeaves;
         private readonly int _minimumExampleCountPerLeaf;
+        private readonly TrainingGranularity _grainularity;
         private IReadOnlyList<TrainCatalogBase.CrossValidationResult<RegressionMetrics>> _crossValidationResults;
 
         public RegressionModel(IDataServices dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null,
-                                uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit = null, int? numberOfTrees = null, int? numberOfLeaves = null, int? minimumExampleCountPerLeaf = null)
+                                uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit = null, int? numberOfTrees = null, int? numberOfLeaves = null,
+                                int? minimumExampleCountPerLeaf = null, TrainingGranularity? grainularity = null)
         {
             Timestamp = DateTime.Now;
             _dataServices = dataServices;
@@ -64,6 +67,7 @@ namespace Visavi.Quantis.Modeling
             _numberOfTrees = numberOfTrees ?? defaultNumberOfTrees;
             _numberOfLeaves = numberOfLeaves ?? defaultNumberOfLeaves;
             _minimumExampleCountPerLeaf = minimumExampleCountPerLeaf ?? defaultMinimumExampleCountPerLeaf;
+            _grainularity = grainularity ?? TrainingGranularity.Daily;
 
             _mlContext.Log += (_, e) => logMlMessage(e.Kind, e.Message);
         }
@@ -83,7 +87,7 @@ namespace Visavi.Quantis.Modeling
         {
             //Create ML Context with seed for repeteable/deterministic results
             var loader = _mlContext.Data.CreateDatabaseLoader<PredictionModelInput>();
-            return loader.Load(_dataServices.EquityArchives.GetTrainingDataQuerySource(IndexTicker, TargetDurationInMonths, _datasetSizeLimit));
+            return loader.Load(_dataServices.EquityArchives.GetTrainingDataQuerySource(IndexTicker, TargetDurationInMonths, _grainularity, _datasetSizeLimit));
         }
 
         private IEstimator<ITransformer> buildDataPipeline()

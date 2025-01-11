@@ -33,10 +33,25 @@ namespace Visavi.Quantis.Modeling
         public string? Index { get; set; }
         public int? DatasetSizeLimit { get; set; }
         public TrainingAlgorithm? Algorithm { get; set; }
+        public TrainingGranularity? Granularity { get; set; }
         public TimeSpan? MaxTrainingTime { get; set; }
 
         public int? NumberOfTrees { get; set; }
         public int? NumberOfLeaves { get; set; }
         public int? MinimumExampleCountPerLeaf { get; set; }
+
+        public override string ToString()
+        {
+            return $@"
+            TrainingParameters:
+                Target Durations (Months): {TargetDurationsInMonths},
+                Algorithm: {Algorithm},
+                Granularity: {Granularity},
+                Max Training Time: {MaxTrainingTime},
+                Number of Trees: {NumberOfTrees},
+                Number of Leaves: {NumberOfLeaves},
+                Min Example Per Leaf {MinimumExampleCountPerLeaf}
+            ";
+        }
     }
 }

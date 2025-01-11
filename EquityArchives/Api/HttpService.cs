@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -31,7 +32,7 @@ namespace Visavi.Quantis.Api
         }
 
         /// <summary>
-        /// HTTP Trigger for Training a Model
+        /// HTTP Trigger for training (POST) or retrieving (GET) a model.
         /// </summary>
         /// <param name="req"></param>
         /// <param name="id"></param>
@@ -48,12 +49,14 @@ namespace Visavi.Quantis.Api
                     req.Query.TryGetValue("algorithm", out var _algorithm);
                     req.Query.TryGetValue("numberOfTrees", out var _numberOfTrees);
                     req.Query.TryGetValue("numberOfLeaves", out var _numberOfLeaves);
+                    req.Query.TryGetValue("granularity", out var granularity);
                     req.Query.TryGetValue("minimumExampleCountPerLeaf", out var _minimumExampleCountPerLeaf);
                     string? datasetSizeLimit = _datasetSizeLimit.FirstOrDefault();
                     string? algorithm = _algorithm.FirstOrDefault();
                     string? numberOfTrees = _numberOfTrees.FirstOrDefault();
                     string? numberOfLeaves = _numberOfLeaves.FirstOrDefault();
                     string? minimumExampleCountPerLeaf = _minimumExampleCountPerLeaf.FirstOrDefault();
+                    string? grainularity = granularity.FirstOrDefault();
                     int[]? targetDurationsInMonths = targetDurations.FirstOrDefault()?.Split(',')?.Select(stringVal => Convert.ToInt32(stringVal))?.ToArray();
 
                     TrainingAlgorithm? trainingAlgorithm = null;
@@ -69,9 +72,22 @@ namespace Visavi.Quantis.Api
                         };
                     }
 
+                    TrainingGranularity? trainingGrainularity = null;
+                    if (!string.IsNullOrEmpty(grainularity))
+                    {
+                        try
+                        {
+                            trainingGrainularity = Enum.Parse<TrainingGranularity>(grainularity, true);
+                        }
+                        catch (Exception ex)
+                        {
+                            return new BadRequestObjectResult($"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.");
+                        };
+                    }
+
                     return await httpPostEquityModel(equityIndex, targetDurationsInMonths, datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null, trainingAlgorithm,
                                                     numberOfTrees != null ? Convert.ToInt32(numberOfTrees) : null, numberOfLeaves != null ? Convert.ToInt32(numberOfLeaves) : null,
-                                                    minimumExampleCountPerLeaf != null ? Convert.ToInt32(minimumExampleCountPerLeaf) : null);
+                                                    minimumExampleCountPerLeaf != null ? Convert.ToInt32(minimumExampleCountPerLeaf) : null, trainingGrainularity);
 
                 case "get":
                     return await (id == null ? httpGetModelSummaryList() : httpGetModel(ModelType.Composite, id.Value));
@@ -82,7 +98,7 @@ namespace Visavi.Quantis.Api
         }
 
         private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int[]? targetDurationsInMonths, int? datasetSizeLimit = null, TrainingAlgorithm? algorithm = null,
-                                                                int? numberOfTrees= null, int? numberOfLeaves = null, int? minimumExampleCountPerLeaf = null)
+                                                                int? numberOfTrees= null, int? numberOfLeaves = null, int? minimumExampleCountPerLeaf = null, TrainingGranularity? granularity = null)
         {
             if (targetDurationsInMonths != null && targetDurationsInMonths.Any(duration => !PricePointPredictor.IsValidDuration(duration)))
             {
@@ -99,10 +115,11 @@ namespace Visavi.Quantis.Api
                                                         Algorithm = algorithm,
                                                         NumberOfTrees = numberOfTrees,
                                                         NumberOfLeaves = numberOfLeaves,
-                                                        MinimumExampleCountPerLeaf = minimumExampleCountPerLeaf
+                                                        MinimumExampleCountPerLeaf = minimumExampleCountPerLeaf,
+                                                        Granularity = granularity
                                                     }));
 
-            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}," +
+            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}, Granularity: {granularity}, " +
                                                                 $"Number of Trees: {numberOfTrees}, Number of Leaves: {numberOfLeaves}, Count per Leaf: {minimumExampleCountPerLeaf}";
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
@@ -253,6 +270,7 @@ namespace Visavi.Quantis.Api
             await queueClient.CreateIfNotExistsAsync();
 
             string jsonMessage = JsonSerializer.Serialize(message);
+            _logger?.LogInformation($"Sending Modeling Message: {jsonMessage}");
             var sendReceipt =  await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
             return message?.TrainingParameters.CompositeModelId ?? 0;
         }
