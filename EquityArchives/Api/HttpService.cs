@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -164,16 +163,19 @@ namespace Visavi.Quantis.Api
 
         private async Task<IActionResult> httpGetModel(ModelType type, int id)
         {
-            /*
             _logger?.LogInformation($"Getting inference model for id {id}");
 
-            var model = await _modelService.GetModelAsync(id);
-            var resultText = JsonSerializer.Serialize(model);
+            switch (type)
+            {
+                case ModelType.Composite:
+                    var compositeModel = await _dataServices.PredictionModels.GetCompositeModelDetails(id);
+                    var resultText = JsonSerializer.Serialize(compositeModel);
+                    _logger?.LogInformation($"Returning object: {resultText}");
+                    return new OkObjectResult(resultText);
 
-            _logger?.LogInformation(resultText);
-            return new OkObjectResult(resultText);
-            */
-            throw new NotImplementedException();
+                default:
+                    return new BadRequestObjectResult($"Model Type {type} is not supported.");
+            }
         }
 
         [Function("LoadEquities")]

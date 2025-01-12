@@ -1,35 +1,82 @@
 ﻿using Azure.Storage.Blobs;
 using Dapper;
 using Microsoft.Extensions.Logging;
+using System.Data;
 using System.Text.Json;
 using Visavi.Quantis.Modeling;
 
 namespace Visavi.Quantis.Data
 {
-    internal class PredictionModels : IPredictionModels
+    internal class PredictionModels : SqlAccessor, IPredictionModels
     {
         private const string equityModelsContainer = "equity-models";
-        private const string retrieveCagrRegressionModels = "SELECT * FROM CagrRegressionModels";
-        private const string retrieveCompositeModels = "SELECT * FROM CompositeModels";
         private const ModelState createdModelState = ModelState.Created;
 
-        ILogger _logger;
-        Connections _connections;
+        private const string createCompositeModelsTableQuery = @"
+            CREATE TABLE [dbo].[CompositeModels] (
+                [Id] INT IDENTITY (1, 1) NOT NULL,
+                [Parameters] JSON NULL,
+                [State] INT  NULL,
+                [QualityScore] FLOAT NULL
+                CONSTRAINT [PK_CompositeModels] PRIMARY KEY CLUSTERED ([Id] ASC)
+            );";
 
-        internal PredictionModels(Connections connections, ILogger logger)
+        private const string createCagressionModelsTableQuery = @"
+            CREATE TABLE [dbo].[CagrRegressionModels] (
+                [Id] INT IDENTITY (1, 1) NOT NULL,
+                [Type] NVARCHAR(50) NOT NULL,
+                [Index] NVARCHAR(50) NOT NULL,
+                [TargetDuration] INT NOT NULL,
+                [Timestamp] DATETIME NOT NULL,
+                [Path] NVARCHAR(255) NOT NULL,
+                [CompositeId] INT NULL,
+                [MeanAbsoluteError] FLOAT NOT NULL,
+                [RootMeanSquaredError] FLOAT NOT NULL,
+                [LossFunction] FLOAT NOT NULL,
+                [RSquared] FLOAT NOT NULL,
+                [AveragePearsonCorrelation] FLOAT NOT NULL,
+                [MinimumPearsonCorrelation] FLOAT NOT NULL,
+                [AverageSpearmanRankCorrelation] FLOAT NOT NULL,
+                [MinimumSpearmanRankCorrelation] FLOAT NOT NULL,
+                [CrossValAverageMeanAbsoluteError] FLOAT NOT NULL,
+                [CrossValMaximumMeanAbsoluteError] FLOAT NOT NULL,
+                [CrossValAverageRootMeanSquaredError] FLOAT NOT NULL,
+                [CrossValMaximumRootMeanSquaredError] FLOAT NOT NULL,
+                [CrossValAverageRSquared] FLOAT NOT NULL,
+                [CrossValMaximumRSquared] FLOAT NOT NULL
+                CONSTRAINT [PK_CagrRegressionModels] PRIMARY KEY CLUSTERED ([Id] ASC)
+            );";
+
+        internal PredictionModels(Connections connections, ILogger logger) : base(connections, logger)
         {
-            _logger = logger;
-            _connections = connections;
         }
 
-        public async Task<int> CreateCompositeModel(TrainModelMessage trainingParameters)
+        public async Task<int> CreateCompositeModel(TrainModelMessage trainModelMessage)
         {
+            ExecuteQuery(createCompositeModelsTableQuery);
+
             using var dbConnection = _connections.DbConnection;
-            var jsonTrainingParameters = JsonSerializer.Serialize(trainingParameters);
+            var jsonTrainingParameters = JsonSerializer.Serialize(trainModelMessage.TrainingParameters);
             return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Parameters], [State]) Values (@jsonTrainingParameters, @createdModelState); SELECT SCOPE_IDENTITY()", new { jsonTrainingParameters, createdModelState });
         }
 
-        public async Task<CompositeModel> GetCompositeModel(int compositeModelId)
+        public async Task<CompositeModelDetails> GetCompositeModelDetails(int compositeModelId)
+        {
+            using var dbConnection = _connections.DbConnection;
+            var compositeModelRecord = await dbConnection.QueryFirstOrDefaultAsync<CompositeModelRecord>("SELECT * FROM CompositeModels WHERE Id = @Id", new { Id = compositeModelId });
+            var trainingParameters = await getTrainingParameters(compositeModelId);
+            var predictionModelRecords = await getCagrRegressionModels(compositeModelId);
+            var modelDetails = new CompositeModelDetails(trainingParameters, compositeModelRecord?.ToModelSummary(), predictionModelRecords.Select(record => record.ToRegressionModelDetails()));
+            return modelDetails;
+        }
+
+        private async Task<IEnumerable<CagrRegressionModelRecord>> getCagrRegressionModels(int compositeModelId)
+        {
+            using var dbConnection = _connections.DbConnection;
+            return await dbConnection.QueryAsync<CagrRegressionModelRecord>("SELECT * FROM CagrRegressionModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
+        }
+
+        private async Task<TrainingParameters> getTrainingParameters(int compositeModelId)
         {
             using var dbConnection = _connections.DbConnection;
             var jsonTrainingParameters = await dbConnection.QueryFirstOrDefaultAsync<string>("SELECT [Parameters] FROM CompositeModels WHERE Id = @Id", new { Id = compositeModelId });
@@ -37,12 +84,22 @@ namespace Visavi.Quantis.Data
             {
                 throw new KeyNotFoundException($"Model with id {compositeModelId} not found.");
             }
-            var trainingParameters = JsonSerializer.Deserialize<TrainingParameters>(jsonTrainingParameters);
 
-            var predictionModelSummaries = await dbConnection.QueryAsync<CagrRegressionModelRecord>("SELECT * FROM CagrRegressionModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
+            var trainingParameters = JsonSerializer.Deserialize<TrainingParameters>(jsonTrainingParameters);
+            if (trainingParameters == null)
+            {
+                throw new Exception($"Failed to deserialize training parameters for model {compositeModelId}");
+            }
+            return trainingParameters;
+        }
+
+        public async Task<PriceTrendPredictor> GetPriceTrendPredictor(int compositeModelId)
+        {
+            var trainingParameters = await getTrainingParameters(compositeModelId);
+            var predictionModelSummaries = await getCagrRegressionModels(compositeModelId);
             var pricePredictors = await Task.WhenAll(predictionModelSummaries.Select(async modelSummary => await getPricePredictor(modelSummary)));
 
-            return new CompositeModel(trainingParameters, pricePredictors);
+            return new PriceTrendPredictor(trainingParameters, pricePredictors);
         }
 
         public async Task<IEnumerable<ModelSummary>> GetModelSummaryList(ModelType modelType = ModelType.Composite)
@@ -51,11 +108,11 @@ namespace Visavi.Quantis.Data
             switch (modelType)
             {
                 case ModelType.Composite:
-                    var compositeModels = await dbConnection.QueryAsync<CompositeModelRecord>(retrieveCompositeModels);
+                    var compositeModels = await dbConnection.QueryAsync<CompositeModelRecord>("SELECT * FROM CompositeModels");
                     return compositeModels.Select(model => model.ToModelSummary());
 
                 case ModelType.CagrRegression:
-                    var regressionModels = await dbConnection.QueryAsync<CagrRegressionModelRecord>(retrieveCagrRegressionModels);
+                    var regressionModels = await dbConnection.QueryAsync<CagrRegressionModelRecord>("SELECT * FROM CagrRegressionModels");
                     return regressionModels.Select(model => model.ToModelSummary());
 
                 default:
@@ -85,6 +142,9 @@ namespace Visavi.Quantis.Data
             var containerClient = storageConnection.GetBlobContainerClient(equityModelsContainer);
             var blobClient = containerClient.GetBlobClient(modelSummary.Path);
             var inferencingModel = (await blobClient.DownloadContentAsync()).Value.Content;
+
+
+
             return new PricePointPredictor(modelSummary, inferencingModel) as IPredictor;
         }
 
@@ -106,6 +166,7 @@ namespace Visavi.Quantis.Data
             }
 
             _logger?.LogInformation("Saved Model, updating metadata");
+            ExecuteQuery(createCagressionModelsTableQuery);
             using var connection = _connections.DbConnection;
             await connection.ExecuteAsync("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared]," +
                                             "[AveragePearsonCorrelation],[MinimumPearsonCorrelation],[AverageSpearmanRankCorrelation],[MinimumSpearmanRankCorrelation],[CrossValAverageMeanAbsoluteError],[CrossValMaximumMeanAbsoluteError]," +

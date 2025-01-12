@@ -3,12 +3,14 @@
 import PredictionGrid from "./components/PredictionGrid";
 import ModelSelector from "./components/ModelSelector";
 import ConfigureModelModal, { TrainingGranularity } from "./components/ConfigureModelModal";
+import ModelDetails from "./components/ModelDetails";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
 function App() {
-  const [selectedModel, setSelectedModel] = useState(7);
+  const [selectedModel, setSelectedModel] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showDetails, setShowDetails] = useState(true); // Control collapsible panel
 
   const handleBuildModel = async (parameters: {
     trainingGranularity: TrainingGranularity;
@@ -46,7 +48,7 @@ function App() {
 
       <div className="flex-1 flex">
         {/* Sidebar */}
-        <nav className="w-64 bg-gray-100 p-4 shadow-md">
+        <nav className="resizable-sidebar w-64 bg-gray-100 p-4 shadow-md">
           <ModelSelector
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
@@ -57,9 +59,21 @@ function App() {
         <main className="flex-1 bg-white p-6 shadow-md">
           <PredictionGrid
             selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
           />
         </main>
+
+        {/* Collapsible Panel */}
+        {showDetails && (
+          <aside className="w-1/4 bg-gray-200 p-4 shadow-md">
+            <ModelDetails selectedModel={selectedModel} />
+          </aside>
+        )}
+        <button
+          className="absolute right-4 top-4 rounded bg-blue-500 p-2 text-white"
+          onClick={() => setShowDetails(!showDetails)}
+        >
+          {showDetails ? "Hide Details" : "Show Details"}
+        </button>
       </div>
 
       {/* Footer */}

@@ -4,16 +4,20 @@ using System.Text.Json;
 
 namespace Visavi.Quantis.Data
 {
-    internal class Cache : ICacheService
+    internal class Cache : SqlAccessor, ICacheService
     {
         private const int timeoutInSeconds = 120;
-        private readonly Connections _connections;
-        private readonly ILogger _logger;
+        private const string createCacheTableQuery = @"
+                                CREATE TABLE [dbo].[Cache] (
+                                    [Key]     NVARCHAR (50) NOT NULL,
+                                    [Value]   JSON          NULL,
+                                    [Created] DATETIME      CONSTRAINT [DEFAULT_Cache_Created] DEFAULT (getdate()) NULL,
+                                    CONSTRAINT [PK_Cache] PRIMARY KEY CLUSTERED ([Key] ASC)
+                                );";
 
-        public Cache(Connections connections, ILogger logger)
+        public Cache(Connections connections, ILogger logger) : base(connections, logger)
         {
-            _connections = connections;
-            _logger = logger;
+            ExecuteQuery(createCacheTableQuery);
         }
 
         public async Task<T?> Get<T>(string key)

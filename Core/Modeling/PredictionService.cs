@@ -114,7 +114,7 @@ namespace Visavi.Quantis.Modeling
             }
 
             var startingEquityRecords = await getEquityPredictionData(tickers, predictionDay);
-            var compositeModel = await _dataServices.PredictionModels.GetCompositeModel(compositeModelId);
+            var compositeModel = await _dataServices.PredictionModels.GetPriceTrendPredictor(compositeModelId);
             var predictors = compositeModel.Predictors.Select(predictor => (predictor, getPredictionEngine(predictor)));
 
             try

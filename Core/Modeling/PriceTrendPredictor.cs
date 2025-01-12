@@ -7,12 +7,12 @@ using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling
 {
-    public class CompositeModel
+    public class PriceTrendPredictor
     {
         public TrainingParameters? TrainingParameters { get; }
         public IPredictor[] Predictors { get; }
 
-        internal CompositeModel(TrainingParameters? trainingParameters, IPredictor[] predictors)
+        internal PriceTrendPredictor(TrainingParameters? trainingParameters, IPredictor[] predictors)
         {
             TrainingParameters = trainingParameters;
             Predictors = predictors;
