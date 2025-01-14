@@ -1,9 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Visavi.Quantis.Modeling;
 
 namespace Visavi.Quantis.Data
 {
@@ -24,23 +19,25 @@ namespace Visavi.Quantis.Data
         public ModelState? State { get; set; } = ModelState.Created;
         public string? Name { get; set; }
         public string? Description { get; set; }
+        public DateTime CreatedTimestamp { get; set; }
     }
 
     public static class CompositeModelExtensions
     {
+        private const string defaultDateTimeFormat = "g";
         internal static string GetName(this CompositeModelRecord model)
         {
-            return $"Model-{model.Id}, {model.State}, {model.QualityScore}";
+            return $"{model.CreatedTimestamp.ToString(defaultDateTimeFormat)}";
         }
 
         internal static string GetDescription(this CompositeModelRecord model)
         {
-            return model?.Parameters ?? string.Empty;
+            return $"State: {model.State}, Quality: {model.QualityScore}";
         }
 
         internal static ModelSummary ToModelSummary(this CompositeModelRecord model)
         {
-            return new ModelSummary(model.Id, model.GetName(), model.GetDescription(), ModelType.Composite);
+            return new ModelSummary(model.Id, model.CreatedTimestamp, model.GetName(), model.GetDescription(), ModelType.Composite, model.QualityScore);
         }
     }
 

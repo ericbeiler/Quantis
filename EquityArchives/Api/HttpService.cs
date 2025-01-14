@@ -128,9 +128,9 @@ namespace Visavi.Quantis.Api
         public async Task<IActionResult> Predictions([HttpTrigger(AuthorizationLevel.Anonymous, ["get"], Route = "Predictions/{modelId:int?}")] HttpRequest req, int? modelId, string ticker, DateTime? predictionDay = null)
         {
             _logger?.LogInformation($"Prediction: modelId = {modelId}, ticker={ticker}");
-            if (modelId == null)
+            if (modelId == null || modelId <= 0)
             {
-                return new BadRequestObjectResult("A modelId must be specified to predict values");
+                return new BadRequestObjectResult("A modelId must be specified and greater than 0 to predict values");
             }
 
             if (ticker == null)

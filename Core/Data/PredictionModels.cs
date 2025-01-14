@@ -12,18 +12,23 @@ namespace Visavi.Quantis.Data
         private const string equityModelsContainer = "equity-models";
         private const ModelState createdModelState = ModelState.Created;
 
+        private const string compositeTableName = "CompositeModels";
         private const string createCompositeModelsTableQuery = @"
             CREATE TABLE [dbo].[CompositeModels] (
                 [Id] INT IDENTITY (1, 1) NOT NULL,
+                [CreatedTimestamp] DATETIME NOT NULL DEFAULT (GETDATE()),
                 [Parameters] JSON NULL,
                 [State] INT  NULL,
-                [QualityScore] FLOAT NULL
+                [QualityScore] FLOAT NULL,
+
                 CONSTRAINT [PK_CompositeModels] PRIMARY KEY CLUSTERED ([Id] ASC)
             );";
 
-        private const string createCagressionModelsTableQuery = @"
+        private const string cagrRegressionModelsTableName = "CagrRegressionModels";
+        private const string createCagrRegressioModelsTableQuery = @"
             CREATE TABLE [dbo].[CagrRegressionModels] (
                 [Id] INT IDENTITY (1, 1) NOT NULL,
+                [CreatedTimestamp] DATETIME NOT NULL DEFAULT (GETDATE()),
                 [Type] NVARCHAR(50) NOT NULL,
                 [Index] NVARCHAR(50) NOT NULL,
                 [TargetDuration] INT NOT NULL,
@@ -43,7 +48,8 @@ namespace Visavi.Quantis.Data
                 [CrossValAverageRootMeanSquaredError] FLOAT NOT NULL,
                 [CrossValMaximumRootMeanSquaredError] FLOAT NOT NULL,
                 [CrossValAverageRSquared] FLOAT NOT NULL,
-                [CrossValMaximumRSquared] FLOAT NOT NULL
+                [CrossValMaximumRSquared] FLOAT NOT NULL,
+
                 CONSTRAINT [PK_CagrRegressionModels] PRIMARY KEY CLUSTERED ([Id] ASC)
             );";
 
@@ -53,7 +59,10 @@ namespace Visavi.Quantis.Data
 
         public async Task<int> CreateCompositeModel(TrainModelMessage trainModelMessage)
         {
-            ExecuteQuery(createCompositeModelsTableQuery);
+            if (!TableExists(compositeTableName))
+            {
+                ExecuteQuery(createCompositeModelsTableQuery);
+            }
 
             using var dbConnection = _connections.DbConnection;
             var jsonTrainingParameters = JsonSerializer.Serialize(trainModelMessage.TrainingParameters);
@@ -166,7 +175,11 @@ namespace Visavi.Quantis.Data
             }
 
             _logger?.LogInformation("Saved Model, updating metadata");
-            ExecuteQuery(createCagressionModelsTableQuery);
+
+            if (!TableExists(cagrRegressionModelsTableName))
+            {
+                ExecuteQuery(createCagrRegressioModelsTableQuery);
+            }
             using var connection = _connections.DbConnection;
             await connection.ExecuteAsync("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared]," +
                                             "[AveragePearsonCorrelation],[MinimumPearsonCorrelation],[AverageSpearmanRankCorrelation],[MinimumSpearmanRankCorrelation],[CrossValAverageMeanAbsoluteError],[CrossValMaximumMeanAbsoluteError]," +

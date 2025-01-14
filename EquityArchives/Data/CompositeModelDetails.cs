@@ -32,7 +32,7 @@ namespace Visavi.Quantis.Data
         public string Name { get; set; }
         public string Description { get; set; }
         public ModelType Type { get; set; }
-        public double QualityScore { get; set; }
+        public double? QualityScore { get; set; }
 
     }
 }

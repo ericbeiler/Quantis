@@ -43,7 +43,7 @@ namespace Visavi.Quantis.Data
 
         public static ModelSummary ToModelSummary(this CagrRegressionModelRecord model)
         {
-            return new ModelSummary(model?.Id ?? -1, model?.GetName() ?? string.Empty, model?.GetDescription() ?? string.Empty, ModelType.CagrRegression);
+            return new ModelSummary(model?.Id ?? -1, model.Timestamp, model?.GetName() ?? string.Empty, model?.GetDescription() ?? string.Empty, ModelType.CagrRegression, model?.RSquared);
         }
 
         public static CagrRegressionModelDetails ToRegressionModelDetails(this CagrRegressionModelRecord model)

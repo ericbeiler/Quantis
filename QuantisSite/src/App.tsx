@@ -10,7 +10,7 @@ const serverUrl = import.meta.env.VITE_SERVER;
 function App() {
   const [selectedModel, setSelectedModel] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [showDetails, setShowDetails] = useState(true); // Control collapsible panel
+  const [isModelDetailsOpen, setIsModelDetailsOpen] = useState(true); // Toggle model details sidebar
 
   const handleBuildModel = async (parameters: {
     trainingGranularity: TrainingGranularity;
@@ -36,7 +36,7 @@ function App() {
   return (
     <div className="flex h-screen flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between bg-blue-600 p-4 text-white shadow-md">
+      <header className="relative flex items-center justify-between bg-blue-600 p-4 text-white shadow-md">
         <h1 className="text-xl font-bold">Quartis Predictions</h1>
         <button
           className="rounded bg-white px-4 py-2 text-blue-600 shadow hover:bg-gray-200"
@@ -46,34 +46,41 @@ function App() {
         </button>
       </header>
 
-      <div className="flex-1 flex">
-        {/* Sidebar */}
+      <div className="flex-1 relative flex">
+        {/* Sidebar on Left (Model Selector) */}
         <nav className="resizable-sidebar w-64 bg-gray-100 p-4 shadow-md">
-          <ModelSelector
-            selectedModel={selectedModel}
-            setSelectedModel={setSelectedModel}
-          />
+          <ModelSelector selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
         </nav>
 
         {/* Main Content */}
         <main className="flex-1 bg-white p-6 shadow-md">
-          <PredictionGrid
-            selectedModel={selectedModel}
-          />
+          <PredictionGrid selectedModel={selectedModel} />
         </main>
 
-        {/* Collapsible Panel */}
-        {showDetails && (
-          <aside className="w-1/4 bg-gray-200 p-4 shadow-md">
-            <ModelDetails selectedModel={selectedModel} />
-          </aside>
+        {/* Toggle Button Placement */}
+        {isModelDetailsOpen ? (
+          <button
+            className="absolute right-[25%] top-16 rounded bg-blue-500 p-2 text-white shadow hover:bg-blue-600"
+            onClick={() => setIsModelDetailsOpen(false)}
+          >
+            ▶
+          </button>
+        ) : (
+          <button
+            className="absolute right-4 top-20 rounded bg-blue-500 p-2 text-white shadow hover:bg-blue-600"
+            onClick={() => setIsModelDetailsOpen(true)}
+          >
+            ◀
+          </button>
         )}
-        <button
-          className="absolute right-4 top-4 rounded bg-blue-500 p-2 text-white"
-          onClick={() => setShowDetails(!showDetails)}
+
+        {/* Model Details Sidebar */}
+        <aside
+          className={`transition-transform transform bg-gray-200 p-4 shadow-md ${isModelDetailsOpen ? "translate-x-0 w-1/4" : "translate-x-full w-0"
+            }`}
         >
-          {showDetails ? "Hide Details" : "Show Details"}
-        </button>
+          {isModelDetailsOpen && <ModelDetails selectedModel={selectedModel} />}
+        </aside>
       </div>
 
       {/* Footer */}
