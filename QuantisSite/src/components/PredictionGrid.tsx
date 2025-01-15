@@ -3,11 +3,14 @@ import { AgGridReact } from 'ag-grid-react'; // React Data Grid Component
 import { ColDef } from 'ag-grid-community'; // Column Definition Interface
 import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS required by the Data Grid
 import "ag-grid-community/styles/ag-theme-alpine.css"; // Optional Theme applied to the Data Grid
+import Highcharts from "highcharts";
+import HighchartsReact from "highcharts-react-official";
 
 import ModelSelectorProps from "./ModelSelectorProps";
 import PredictionTrend from "./PredictionTrend";
 
 const serverUrl = import.meta.env.VITE_SERVER;
+
 
 const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
 
@@ -17,18 +20,19 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
 
   // Row Data: The data to be displayed.
   const [predictions, setRowData] = useState<PredictionTrend[]>([]);
-  
+  const [selectedPrediction, setSelectedPrediction] = useState<PredictionTrend | null>(null);
+
   // Column Definitions: Defines the columns to be displayed.
   const predictionColumns: ColDef<PredictionTrend>[] = [
     { field: 'Ticker', headerName: 'Ticker', width: 100 },
     {
       headerName: 'Starting Date', width: 120,
-      valueGetter: params => params.data?.PricePoints?.[0]?.StartingDate 
+      valueGetter: params => params.data?.PricePoints?.[0]?.StartingDate
     },
     {
       headerName: 'Starting Price', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.StartingPrice),
-      valueGetter: params => params.data?.PricePoints?.[0]?.StartingPrice 
+      valueGetter: params => params.data?.PricePoints?.[0]?.StartingPrice
     },
     {
       headerName: 'Year 1 Price', width: 120,
@@ -70,9 +74,9 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[3]?.PredictedCagr),
       valueGetter: params => params.data?.PricePoints?.[3]?.PredictedCagr
     }
-//    { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
-//    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeLow) },
-//    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeHigh) },
+    //    { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
+    //    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeLow) },
+    //    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeHigh) },
   ];
   const [loading, setLoading] = useState(true);
 
@@ -95,23 +99,67 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
     fetchPredictions();
   }, [selectedModel]); // Empty dependency array means this runs once after the component mounts
 
+  // Prepare data for Highcharts based on the selected row
+  const chartData = selectedPrediction
+    ? [
+      {
+        name: selectedPrediction.Ticker,
+        data: [
+          selectedPrediction.PricePoints?.[0]?.StartingPrice ?? 0,
+          selectedPrediction.PricePoints?.[0]?.PredictedEndingPrice ?? 0,
+          selectedPrediction.PricePoints?.[1]?.PredictedEndingPrice ?? 0,
+          selectedPrediction.PricePoints?.[2]?.PredictedEndingPrice ?? 0,
+          selectedPrediction.PricePoints?.[3]?.PredictedEndingPrice ?? 0,
+        ],
+      },
+    ]
+    : [];
+
+  const chartOptions = {
+    chart: {
+      type: "line",
+    },
+    title: {
+      text: "Prediction Trends",
+    },
+    xAxis: {
+      categories: ["Starting Price", "Year 1", "Year 2", "Year 3", "Year 5"],
+      title: {
+        text: "Time Period",
+      },
+    },
+    yAxis: {
+      title: {
+        text: "Price",
+      },
+    },
+    series: chartData,
+  };
+
   return (
-    // wrapping container with theme & size
-    <div
-      className="ag-theme-quartz" // applying the Data Grid theme
-      style={{ height: 1000 }} // the Data Grid will fill the size of the parent container
-    >
-      <AgGridReact
-        rowData={predictions}
-        columnDefs={predictionColumns}
-      />
-      {loading ?
-        (<p>Loading Data...</p>
-        ) : (
-          <p>Prediction Count: {predictions.length}</p>
+    <div>
+      {/* Data Grid */}
+      <div className="ag-theme-alpine" style={{ height: 500 }}>
+        <AgGridReact
+          rowData={predictions}
+          columnDefs={predictionColumns}
+          rowSelection="single"
+          onSelectionChanged={(event) => {
+            const selectedRow = event.api.getSelectedRows()[0];
+            setSelectedPrediction(selectedRow || null);
+          }}
+        />
+        {loading ? <p>Loading Data...</p> : <p>Prediction Count: {predictions.length}</p>}
+      </div>
+
+      {/* Highcharts Trend Chart */}
+      <div style={{ marginTop: "20px" }}>
+        {!loading && (
+          <HighchartsReact highcharts={Highcharts} options={chartOptions} />
         )}
+      </div>
     </div>
-  )
+  );
 };
 
 export default PredictionGrid;
