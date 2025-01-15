@@ -95,13 +95,13 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
                     <li><strong>Mean Absolute Error:</strong> {formatNumber(detail.MeanAbsoluteError)}</li>
                     <li><strong>Root Mean Squared Error:</strong> {formatNumber(detail.RootMeanSquaredError)}</li>
                     <li><strong>Loss Function:</strong> {formatNumber(detail.LossFunction)}</li>
-                    <li><strong>Average Pearson Correlation:</strong> {formatNumber(detail.AveragePearsonCorrelation)}</li>
-                    <li><strong>Minimum Pearson Correlation:</strong> {formatNumber(detail.MinimumPearsonCorrelation)}</li>
-                    <li><strong>Average Spearman Rank Correlation:</strong> {formatNumber(detail.AverageSpearmanRankCorrelation)}</li>
-                    <li><strong>Minimum Spearman Rank Correlation:</strong> {formatNumber(detail.MinimumSpearmanRankCorrelation)}</li>
                     <li>
                       <strong>Cross Validations</strong>
                       <ul>
+                        <li><strong>Average Pearson Correlation:</strong> {formatNumber(detail.AveragePearsonCorrelation)}</li>
+                        <li><strong>Minimum Pearson Correlation:</strong> {formatNumber(detail.MinimumPearsonCorrelation)}</li>
+                        <li><strong>Average Spearman Rank Correlation:</strong> {formatNumber(detail.AverageSpearmanRankCorrelation)}</li>
+                        <li><strong>Minimum Spearman Rank Correlation:</strong> {formatNumber(detail.MinimumSpearmanRankCorrelation)}</li>
                         <li><strong>Average Mean Absolute Error:</strong> {formatNumber(detail.CrossValAverageMeanAbsoluteError)}</li>
                         <li><strong>Maximum Mean Absolute Error:</strong> {formatNumber(detail.CrossValMaximumMeanAbsoluteError)}</li>
                         <li><strong>Average Root Mean Squared Error:</strong> {formatNumber(detail.CrossValAverageRootMeanSquaredError)}</li>
