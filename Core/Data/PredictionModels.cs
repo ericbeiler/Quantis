@@ -10,16 +10,18 @@ namespace Visavi.Quantis.Data
     internal class PredictionModels : SqlAccessor, IPredictionModels
     {
         private const string equityModelsContainer = "equity-models";
-        private const ModelState createdModelState = ModelState.Created;
 
         private const string compositeTableName = "CompositeModels";
         private const string createCompositeModelsTableQuery = @"
             CREATE TABLE [dbo].[CompositeModels] (
                 [Id] INT IDENTITY (1, 1) NOT NULL,
-                [CreatedTimestamp] DATETIME NOT NULL DEFAULT (GETDATE()),
+                [Name] NVARCHAR(MAX) NULL,
+                [Description] NVARCHAR(MAX) NULL,
                 [Parameters] JSON NULL,
-                [State] INT  NULL,
+                [State] INT  NOT NULL DEFAULT 0,
                 [QualityScore] FLOAT NULL,
+                [CreatedTimestamp] DATETIME NOT NULL DEFAULT (GETDATE()),
+                [ModifiedTimestamp] DATETIME NULL,
 
                 CONSTRAINT [PK_CompositeModels] PRIMARY KEY CLUSTERED ([Id] ASC)
             );";
@@ -59,14 +61,14 @@ namespace Visavi.Quantis.Data
 
         public async Task<int> CreateCompositeModel(TrainModelMessage trainModelMessage)
         {
-            if (!TableExists(compositeTableName))
+            if (!(await TableExists(compositeTableName)))
             {
-                ExecuteQuery(createCompositeModelsTableQuery);
+                await ExecuteQuery(createCompositeModelsTableQuery);
             }
 
             using var dbConnection = _connections.DbConnection;
             var jsonTrainingParameters = JsonSerializer.Serialize(trainModelMessage.TrainingParameters);
-            return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Parameters], [State]) Values (@jsonTrainingParameters, @createdModelState); SELECT SCOPE_IDENTITY()", new { jsonTrainingParameters, createdModelState });
+            return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Name], [Description], [Parameters]) Values (@name, @description, @jsonTrainingParameters); SELECT SCOPE_IDENTITY()", new {name = trainModelMessage.ModelName, description = trainModelMessage.ModelDescription, jsonTrainingParameters });
         }
 
         public async Task<CompositeModelDetails> GetCompositeModelDetails(int compositeModelId)
@@ -111,13 +113,23 @@ namespace Visavi.Quantis.Data
             return new PriceTrendPredictor(trainingParameters, pricePredictors);
         }
 
-        public async Task<IEnumerable<ModelSummary>> GetModelSummaryList(ModelType modelType = ModelType.Composite)
+        public async Task<IEnumerable<ModelSummary>> GetModelSummaryList(ModelType modelType = ModelType.Composite, bool includeDeleted = false)
         {
+            if (!(await TableExists(compositeTableName)))
+            {
+                await ExecuteQuery(createCompositeModelsTableQuery);
+            }
+
             using var dbConnection = _connections.DbConnection;
             switch (modelType)
             {
                 case ModelType.Composite:
-                    var compositeModels = await dbConnection.QueryAsync<CompositeModelRecord>("SELECT * FROM CompositeModels");
+                    string query = "SELECT * FROM CompositeModels";
+                    if (!includeDeleted)
+                    {
+                        query += $" WHERE State != {(int)ModelState.Deleted}";
+                    }
+                    var compositeModels = await dbConnection.QueryAsync<CompositeModelRecord>(query);
                     return compositeModels.Select(model => model.ToModelSummary());
 
                 case ModelType.CagrRegression:
@@ -154,7 +166,7 @@ namespace Visavi.Quantis.Data
 
 
 
-            return new PricePointPredictor(modelSummary, inferencingModel) as IPredictor;
+            return new PricePointPredictor(modelSummary, inferencingModel);
         }
 
         public async Task SaveModel(string modelName, RegressionModel regressionModel)
@@ -176,9 +188,9 @@ namespace Visavi.Quantis.Data
 
             _logger?.LogInformation("Saved Model, updating metadata");
 
-            if (!TableExists(cagrRegressionModelsTableName))
+            if (!(await TableExists(cagrRegressionModelsTableName)))
             {
-                ExecuteQuery(createCagrRegressioModelsTableQuery);
+                await ExecuteQuery(createCagrRegressioModelsTableQuery);
             }
             using var connection = _connections.DbConnection;
             await connection.ExecuteAsync("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared]," +
@@ -212,16 +224,44 @@ namespace Visavi.Quantis.Data
                                     });
         }
 
-        public async Task UpdateModelState(int modelId, ModelState modelState)
+        public async Task UpdateModelState(int modelId, ModelState state)
         {
             try
             {
                 using var connection = _connections.DbConnection;
-                await connection.ExecuteAsync("UPDATE CompositeModels SET State = @ModelState WHERE Id = @Id", new { ModelState = modelState, Id = modelId });
+                await connection.ExecuteAsync("UPDATE CompositeModels SET State = @state, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { State = state, @timestamp = DateTime.UtcNow, Id = modelId });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error updating model state for model {modelId} to {modelState}");
+                _logger.LogError(ex, $"Error updating model state for model {modelId} to {state}");
+                throw;
+            }
+        }
+
+        public async Task UpdateModelName(int modelId, string name)
+        {
+            try
+            {
+                using var connection = _connections.DbConnection;
+                await connection.ExecuteAsync("UPDATE CompositeModels SET Name = @name, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { Name = name, @timestamp = DateTime.UtcNow, Id = modelId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error updating model name for model {modelId} to {name}");
+                throw;
+            }
+        }
+
+        public async Task UpdateModelDescription(int modelId, string description)
+        {
+            try
+            {
+                using var connection = _connections.DbConnection;
+                await connection.ExecuteAsync("UPDATE CompositeModels SET Description = @description, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { Description = description, @timestamp = DateTime.UtcNow, Id = modelId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error updating model description for model {modelId} to {description}");
                 throw;
             }
         }

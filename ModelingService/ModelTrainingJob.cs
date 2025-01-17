@@ -84,6 +84,7 @@ namespace Visavi.Quantis.Modeling
 
             try
             {
+                _logger.LogInformation($"Caching Quality Score and Trinaing State for model {_trainingParameters.CompositeModelId}. Score: {qualityScore}");
                 if (_trainingParameters.CompositeModelId != null)
                 {
                     await _dataServices.PredictionModels.UpdateQualityScore(_trainingParameters.CompositeModelId.Value, qualityScore);
@@ -123,16 +124,27 @@ namespace Visavi.Quantis.Modeling
 
         async Task cacheTickerProjections()
         {
-            int compositeId = _trainingParameters.CompositeModelId ?? 0;
-            if (compositeId != 0)
+            try
             {
-                var indeces = await _dataServices.EquityArchives.GetIndeces();
-                foreach (var index in indeces)
+                int compositeId = _trainingParameters.CompositeModelId ?? 0;
+                if (compositeId != 0)
                 {
-                    var predictions = await _predictionService.PredictPriceTrend(compositeId, [index.Ticker]);
-                    _logger.LogInformation($"Caching predictions for {index.Ticker}");
-                    await _dataServices.Cache.Set(_predictionService.GetCacheKey(compositeId, index.Ticker), predictions);
+                    var indeces = await _dataServices.EquityArchives.GetIndeces();
+                    foreach (var index in indeces)
+                    {
+                        var predictions = await _predictionService.PredictPriceTrend(compositeId, [index.Ticker]);
+                        _logger.LogInformation($"Caching predictions for {index.Ticker}");
+                        await _dataServices.Cache.Set(_predictionService.GetCacheKey(compositeId, index.Ticker), predictions);
+                    }
                 }
+                else
+                {
+                    _logger.LogWarning("Composite Model Id is not set. Unable to cache ticker projections.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unable to cache ticker projections.");
             }
         }
     }

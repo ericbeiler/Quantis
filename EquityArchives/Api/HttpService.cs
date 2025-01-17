@@ -30,75 +30,63 @@ namespace Visavi.Quantis.Api
             _dataServices = dataServices;
         }
 
+
         /// <summary>
-        /// HTTP Trigger for training (POST) or retrieving (GET) a model.
+        /// Queues a model for training.
         /// </summary>
         /// <param name="req"></param>
         /// <param name="id"></param>
         /// <returns></returns>
-        [Function("Model")]
-        public async Task<IActionResult> HttpEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post", "get"], Route = "Model/{id:int?}")] HttpRequest req, int? id)
+        [Function("PostModel")]
+        public async Task<IActionResult> PostEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post"], Route = "Model")] HttpRequest req)
         {
-            switch (req.Method.ToLower())
+            req.Query.TryGetValue("equityIndex", out var equityIndex);
+            req.Query.TryGetValue("targetDurations", out var targetDurations);
+            req.Query.TryGetValue("datasetSizeLimit", out var _datasetSizeLimit);
+            req.Query.TryGetValue("algorithm", out var _algorithm);
+            req.Query.TryGetValue("numberOfTrees", out var _numberOfTrees);
+            req.Query.TryGetValue("numberOfLeaves", out var _numberOfLeaves);
+            req.Query.TryGetValue("granularity", out var _granularity);
+            req.Query.TryGetValue("minimumExampleCountPerLeaf", out var _minimumExampleCountPerLeaf);
+            req.Query.TryGetValue("name", out var _name);
+            req.Query.TryGetValue("description", out var _description);
+            string? datasetSizeLimit = _datasetSizeLimit.FirstOrDefault();
+            string? algorithm = _algorithm.FirstOrDefault();
+            string? numberOfTrees = _numberOfTrees.FirstOrDefault();
+            string? numberOfLeaves = _numberOfLeaves.FirstOrDefault();
+            string? minimumExampleCountPerLeaf = _minimumExampleCountPerLeaf.FirstOrDefault();
+            string? granularity = _granularity.FirstOrDefault();
+            string? name = _name;
+            string? description = _description;
+            int[]? targetDurationsInMonths = targetDurations.FirstOrDefault()?.Split(',')?.Select(stringVal => Convert.ToInt32(stringVal))?.ToArray();
+
+            TrainingAlgorithm? trainingAlgorithm = null;
+            if (!string.IsNullOrEmpty(algorithm))
             {
-                case "post":
-                    req.Query.TryGetValue("equityIndex", out var equityIndex);
-                    req.Query.TryGetValue("targetDurations", out var targetDurations);
-                    req.Query.TryGetValue("datasetSizeLimit", out var _datasetSizeLimit);
-                    req.Query.TryGetValue("algorithm", out var _algorithm);
-                    req.Query.TryGetValue("numberOfTrees", out var _numberOfTrees);
-                    req.Query.TryGetValue("numberOfLeaves", out var _numberOfLeaves);
-                    req.Query.TryGetValue("granularity", out var granularity);
-                    req.Query.TryGetValue("minimumExampleCountPerLeaf", out var _minimumExampleCountPerLeaf);
-                    string? datasetSizeLimit = _datasetSizeLimit.FirstOrDefault();
-                    string? algorithm = _algorithm.FirstOrDefault();
-                    string? numberOfTrees = _numberOfTrees.FirstOrDefault();
-                    string? numberOfLeaves = _numberOfLeaves.FirstOrDefault();
-                    string? minimumExampleCountPerLeaf = _minimumExampleCountPerLeaf.FirstOrDefault();
-                    string? grainularity = granularity.FirstOrDefault();
-                    int[]? targetDurationsInMonths = targetDurations.FirstOrDefault()?.Split(',')?.Select(stringVal => Convert.ToInt32(stringVal))?.ToArray();
-
-                    TrainingAlgorithm? trainingAlgorithm = null;
-                    if (!string.IsNullOrEmpty(algorithm))
-                    {
-                        try
-                        {
-                            trainingAlgorithm = Enum.Parse<TrainingAlgorithm>(algorithm, true);
-                        }
-                        catch (Exception ex)
-                        {
-                            return new BadRequestObjectResult($"{algorithm} is not a valid algorithm. Try FastTree or Auto instead.");
-                        };
-                    }
-
-                    TrainingGranularity? trainingGrainularity = null;
-                    if (!string.IsNullOrEmpty(grainularity))
-                    {
-                        try
-                        {
-                            trainingGrainularity = Enum.Parse<TrainingGranularity>(grainularity, true);
-                        }
-                        catch (Exception ex)
-                        {
-                            return new BadRequestObjectResult($"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.");
-                        };
-                    }
-
-                    return await httpPostEquityModel(equityIndex, targetDurationsInMonths, datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null, trainingAlgorithm,
-                                                    numberOfTrees != null ? Convert.ToInt32(numberOfTrees) : null, numberOfLeaves != null ? Convert.ToInt32(numberOfLeaves) : null,
-                                                    minimumExampleCountPerLeaf != null ? Convert.ToInt32(minimumExampleCountPerLeaf) : null, trainingGrainularity);
-
-                case "get":
-                    return await (id == null ? httpGetModelSummaryList() : httpGetModel(ModelType.Composite, id.Value));
-
-                default:
-                    return new BadRequestResult();
+                try
+                {
+                    trainingAlgorithm = Enum.Parse<TrainingAlgorithm>(algorithm, true);
+                }
+                catch (Exception ex)
+                {
+                    return new BadRequestObjectResult($"{algorithm} is not a valid algorithm. Try FastTree or Auto instead.");
+                };
             }
-        }
 
-        private async Task<IActionResult> httpPostEquityModel(string? equityIndex, int[]? targetDurationsInMonths, int? datasetSizeLimit = null, TrainingAlgorithm? algorithm = null,
-                                                                int? numberOfTrees= null, int? numberOfLeaves = null, int? minimumExampleCountPerLeaf = null, TrainingGranularity? granularity = null)
-        {
+            TrainingGranularity? trainingGrainularity = null;
+            if (!string.IsNullOrEmpty(granularity))
+            {
+                try
+                {
+                    trainingGrainularity = Enum.Parse<TrainingGranularity>(granularity, true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.");  
+                    return new BadRequestObjectResult($"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.");
+                };
+            }
+
             if (targetDurationsInMonths != null && targetDurationsInMonths.Any(duration => !PricePointPredictor.IsValidDuration(duration)))
             {
                 return new BadRequestObjectResult($"{targetDurationsInMonths} is not a valid Target Duration. Try 12, 24, 36 or 60 instead.");
@@ -107,21 +95,73 @@ namespace Visavi.Quantis.Api
             _logger?.LogInformation("Queuing Training of Model.");
 
             var receipt = await sendModelingMessage(new TrainModelMessage(new TrainingParameters()
-                                                    {
-                                                        TargetDurationsInMonths = targetDurationsInMonths,
-                                                        Index = equityIndex,
-                                                        DatasetSizeLimit = datasetSizeLimit,
-                                                        Algorithm = algorithm,
-                                                        NumberOfTrees = numberOfTrees,
-                                                        NumberOfLeaves = numberOfLeaves,
-                                                        MinimumExampleCountPerLeaf = minimumExampleCountPerLeaf,
-                                                        Granularity = granularity
-                                                    }));
+            {
+                TargetDurationsInMonths = targetDurationsInMonths,
+                Index = equityIndex,
+                DatasetSizeLimit = datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null,
+                Algorithm = trainingAlgorithm,
+                NumberOfTrees = numberOfTrees != null ? Convert.ToInt32(numberOfTrees) : null,
+                NumberOfLeaves = numberOfLeaves != null ? Convert.ToInt32(numberOfLeaves) : null,
+                MinimumExampleCountPerLeaf = minimumExampleCountPerLeaf != null ? Convert.ToInt32(minimumExampleCountPerLeaf) : null,
+                Granularity = trainingGrainularity
+            }, name, description));
 
-            var resultText = $"Training of Model Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}, Granularity: {granularity}, " +
+            var resultText = $"Training of Model {name} Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}, Granularity: {granularity}, " +
                                                                 $"Number of Trees: {numberOfTrees}, Number of Leaves: {numberOfLeaves}, Count per Leaf: {minimumExampleCountPerLeaf}";
             _logger?.LogInformation(resultText);
             return new OkObjectResult(resultText);
+
+        }
+
+        /// <summary>
+        /// Gets a summary of all models or detailed information on a specific model.
+        /// </summary>
+        /// <param name="req"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [Function("GetModel")]
+        public async Task<IActionResult> GetEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["get"], Route = "Model/{id:int?}")] HttpRequest req, int? id)
+        {
+            return await (id == null ? httpGetModelSummaryList() : httpGetModel(ModelType.Composite, id.Value));
+        }
+
+        /// <summary>
+        /// Updates the name and description of a model.
+        /// </summary>
+        /// <param name="req"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [Function("PatchModel")]
+        public async Task<IActionResult> UpdateEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["patch"], Route = "Model/{id:int}")] HttpRequest req, int id)
+        {
+            req.Query.TryGetValue("name", out var _name);
+            req.Query.TryGetValue("description", out var _description);
+            string? name = _name;
+            string? description = _description;
+            if (name != null)
+            {
+                await _dataServices.PredictionModels.UpdateModelName(id, name);
+            }
+
+            if (description != null)
+            {
+                await _dataServices.PredictionModels.UpdateModelDescription(id, description);
+            }
+
+            return new OkResult();
+        }
+
+        /// <summary>
+        /// Delete a model.
+        /// </summary>
+        /// <param name="req"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [Function("DeleteModel")]
+        public async Task<IActionResult> DeleteEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["delete"], Route = "Model/{id:int}")] HttpRequest req, int id)
+        {
+            await _dataServices.PredictionModels.UpdateModelState(id, ModelState.Deleted);
+            return new OkResult();
         }
 
         [Function("Predictions")]
@@ -271,7 +311,8 @@ namespace Visavi.Quantis.Api
             var queueClient = queueServiceClient.GetQueueClient(quantisModelingQueue);
             await queueClient.CreateIfNotExistsAsync();
 
-            string jsonMessage = JsonSerializer.Serialize(message);
+            JsonSerializerOptions options = new JsonSerializerOptions() { RespectNullableAnnotations = true };
+            string jsonMessage = JsonSerializer.Serialize(message, options);
             _logger?.LogInformation($"Sending Modeling Message: {jsonMessage}");
             var sendReceipt =  await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
             return message?.TrainingParameters.CompositeModelId ?? 0;

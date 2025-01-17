@@ -100,8 +100,9 @@ namespace Visavi.Quantis.Modeling
                 return null;
             }
 
+            JsonSerializerOptions options = new JsonSerializerOptions() { RespectNullableAnnotations = true };
             _logger.LogInformation($"Received message: {messageBody}");
-            return JsonSerializer.Deserialize<TrainModelMessage>(messageBody);
+            return JsonSerializer.Deserialize<TrainModelMessage>(messageBody, options);
         }
 
         private async Task<Response?> deleteQueueMessage(QueueMessage? message, CancellationToken cancellationToken)

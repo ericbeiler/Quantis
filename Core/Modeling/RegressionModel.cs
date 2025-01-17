@@ -229,12 +229,13 @@ namespace Visavi.Quantis.Modeling
         }
         private float calculateSpearmanRankCorrelation(float[] x, float[] y)
         {
+            _logger.LogInformation("Calculating Spearman Rank Correlation:");
             // Get ranks for both prediction arrays
             var rankX = getRanksForSpearmanCorrelation(x);
             var rankY = getRanksForSpearmanCorrelation(y);
 
             // Calculate the Spearman Rank Correlation
-            int n = rankX.Length;
+            long n = rankX.Length;
             float sumOfSquaredRankDifferences = 0;
 
             for (int i = 0; i < n; i++)
@@ -243,11 +244,19 @@ namespace Visavi.Quantis.Modeling
                 sumOfSquaredRankDifferences += difference * difference;
             }
 
-            var spearmanRankCorrelation = 1 - (6 * sumOfSquaredRankDifferences) / (n * (n * n - 1));
+            long spearmanDenominator = n * (n * n - 1);
+            var spearmanRankCorrelation = 1 - ((6 * sumOfSquaredRankDifferences) / spearmanDenominator);
             if (spearmanRankCorrelation < -1)
             {
                 _logger.LogWarning("Spearman Rank Correlation is less than -1.");
                 _logger.LogInformation($"X Count: {x.Length}, Y Count: {y.Length}, RankX Count: {rankX.Length}, RankY Count: {rankY.Length}");
+                _logger.LogInformation($"Squared Rank Differences = {sumOfSquaredRankDifferences}, Denominator {spearmanDenominator}");
+            }
+            if (spearmanRankCorrelation > 1)
+            {
+                _logger.LogWarning("Spearman Rank Correlation is greater than 1.");
+                _logger.LogInformation($"X Count: {x.Length}, Y Count: {y.Length}, RankX Count: {rankX.Length}, RankY Count: {rankY.Length}");
+                _logger.LogInformation($"Squared Rank Differences = {sumOfSquaredRankDifferences}, Denominator {spearmanDenominator}");
             }
 
             return spearmanRankCorrelation;

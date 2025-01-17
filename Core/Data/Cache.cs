@@ -1,5 +1,6 @@
 ﻿using Dapper;
 using Microsoft.Extensions.Logging;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 
 namespace Visavi.Quantis.Data
@@ -7,6 +8,7 @@ namespace Visavi.Quantis.Data
     internal class Cache : SqlAccessor, ICacheService
     {
         private const int timeoutInSeconds = 120;
+        private const string tableName = "Cache";
         private const string createCacheTableQuery = @"
                                 CREATE TABLE [dbo].[Cache] (
                                     [Key]     NVARCHAR (50) NOT NULL,
@@ -17,7 +19,11 @@ namespace Visavi.Quantis.Data
 
         public Cache(Connections connections, ILogger logger) : base(connections, logger)
         {
-            ExecuteQuery(createCacheTableQuery);
+            var tableExistsTask = TableExists(tableName);
+            if (!tableExistsTask.Result)
+            {
+                _ = ExecuteQuery(createCacheTableQuery).Result;
+            }
         }
 
         public async Task<T?> Get<T>(string key)
