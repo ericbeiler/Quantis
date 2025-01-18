@@ -39,17 +39,18 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
     setExpandedRegressionModels((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const formatNumber = (value: number) => value.toFixed(2);
+  const formatTwoDecimals = (value: number) => value.toFixed(2);
+  const formatInteger = (value: number) => value.toFixed(0);
 
   return (
     <div className="p-4">
       <h2 className="text-lg font-bold">Model Details</h2>
       <ul className="list-disc space-y-2 pl-5">
-        <li><strong>ID:</strong> {modelDetails.Id}</li>
         <li><strong>Name:</strong> {modelDetails.Name}</li>
         <li><strong>Description:</strong> {modelDetails.Description}</li>
+        <li><strong>Quality Score:</strong> {formatInteger(modelDetails.QualityScore)}</li>
         <li><strong>Type:</strong> {modelDetails.Type}</li>
-        <li><strong>Quality Score:</strong> {modelDetails.QualityScore}</li>
+        <li><strong>ID:</strong> {modelDetails.Id}</li>
 
         <li>
           <button
@@ -91,23 +92,23 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
                     <li><strong>Timestamp:</strong> {detail.Timestamp}</li>
                     <li><strong>Type:</strong> {detail.Type}</li>
                     <li><strong>Target Duration:</strong> {detail.TargetDuration}</li>
-                    <li><strong>RSquared:</strong> {formatNumber(detail.RSquared)}</li>
-                    <li><strong>Mean Absolute Error:</strong> {formatNumber(detail.MeanAbsoluteError)}</li>
-                    <li><strong>Root Mean Squared Error:</strong> {formatNumber(detail.RootMeanSquaredError)}</li>
-                    <li><strong>Loss Function:</strong> {formatNumber(detail.LossFunction)}</li>
+                    <li><strong>RSquared:</strong> {formatTwoDecimals(detail.RSquared)}</li>
+                    <li><strong>Mean Absolute Error:</strong> {formatTwoDecimals(detail.MeanAbsoluteError)}</li>
+                    <li><strong>Root Mean Squared Error:</strong> {formatTwoDecimals(detail.RootMeanSquaredError)}</li>
+                    <li><strong>Loss Function:</strong> {formatTwoDecimals(detail.LossFunction)}</li>
                     <li>
                       <strong>Cross Validations</strong>
                       <ul>
-                        <li><strong>Average Pearson Correlation:</strong> {formatNumber(detail.AveragePearsonCorrelation)}</li>
-                        <li><strong>Minimum Pearson Correlation:</strong> {formatNumber(detail.MinimumPearsonCorrelation)}</li>
-                        <li><strong>Average Spearman Rank Correlation:</strong> {formatNumber(detail.AverageSpearmanRankCorrelation)}</li>
-                        <li><strong>Minimum Spearman Rank Correlation:</strong> {formatNumber(detail.MinimumSpearmanRankCorrelation)}</li>
-                        <li><strong>Average Mean Absolute Error:</strong> {formatNumber(detail.CrossValAverageMeanAbsoluteError)}</li>
-                        <li><strong>Maximum Mean Absolute Error:</strong> {formatNumber(detail.CrossValMaximumMeanAbsoluteError)}</li>
-                        <li><strong>Average Root Mean Squared Error:</strong> {formatNumber(detail.CrossValAverageRootMeanSquaredError)}</li>
-                        <li><strong>Maximum Root Mean Squared Error:</strong> {formatNumber(detail.CrossValMaximumRootMeanSquaredError)}</li>
-                        <li><strong>Average RSquared:</strong> {formatNumber(detail.CrossValAverageRSquared)}</li>
-                        <li><strong>Maximum RSquared:</strong> {formatNumber(detail.CrossValMaximumRSquared)}</li>
+                        <li><strong>Average Pearson Correlation:</strong> {formatTwoDecimals(detail.AveragePearsonCorrelation)}</li>
+                        <li><strong>Minimum Pearson Correlation:</strong> {formatTwoDecimals(detail.MinimumPearsonCorrelation)}</li>
+                        <li><strong>Average Spearman Rank Correlation:</strong> {formatTwoDecimals(detail.AverageSpearmanRankCorrelation)}</li>
+                        <li><strong>Minimum Spearman Rank Correlation:</strong> {formatTwoDecimals(detail.MinimumSpearmanRankCorrelation)}</li>
+                        <li><strong>Average Mean Absolute Error:</strong> {formatTwoDecimals(detail.CrossValAverageMeanAbsoluteError)}</li>
+                        <li><strong>Maximum Mean Absolute Error:</strong> {formatTwoDecimals(detail.CrossValMaximumMeanAbsoluteError)}</li>
+                        <li><strong>Average Root Mean Squared Error:</strong> {formatTwoDecimals(detail.CrossValAverageRootMeanSquaredError)}</li>
+                        <li><strong>Maximum Root Mean Squared Error:</strong> {formatTwoDecimals(detail.CrossValMaximumRootMeanSquaredError)}</li>
+                        <li><strong>Average RSquared:</strong> {formatTwoDecimals(detail.CrossValAverageRSquared)}</li>
+                        <li><strong>Maximum RSquared:</strong> {formatTwoDecimals(detail.CrossValMaximumRSquared)}</li>
                       </ul>
                     </li>
                   </ul>

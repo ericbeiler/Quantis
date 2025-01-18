@@ -19,7 +19,7 @@ namespace Visavi.Quantis.Data
                 [Description] NVARCHAR(MAX) NULL,
                 [Parameters] JSON NULL,
                 [State] INT  NOT NULL DEFAULT 0,
-                [QualityScore] FLOAT NULL,
+                [QualityScore] INT NULL,
                 [CreatedTimestamp] DATETIME NOT NULL DEFAULT (GETDATE()),
                 [ModifiedTimestamp] DATETIME NULL,
 
@@ -266,7 +266,7 @@ namespace Visavi.Quantis.Data
             }
         }
 
-        public async Task UpdateQualityScore(int modelId, double qualityScore)
+        public async Task UpdateQualityScore(int modelId, int qualityScore)
         {
             try
             {

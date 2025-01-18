@@ -125,6 +125,12 @@ namespace Visavi.Quantis.Api
             return await (id == null ? httpGetModelSummaryList() : httpGetModel(ModelType.Composite, id.Value));
         }
 
+        public class UpdateModelRequest
+        {
+            public string? Name { get; set; }
+            public string? Description { get; set; }
+        }
+
         /// <summary>
         /// Updates the name and description of a model.
         /// </summary>
@@ -134,16 +140,23 @@ namespace Visavi.Quantis.Api
         [Function("PatchModel")]
         public async Task<IActionResult> UpdateEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["patch"], Route = "Model/{id:int}")] HttpRequest req, int id)
         {
-            req.Query.TryGetValue("name", out var _name);
-            req.Query.TryGetValue("description", out var _description);
-            string? name = _name;
-            string? description = _description;
-            if (name != null)
+            // Read the request body
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+
+            // Deserialize the JSON into an object
+            var data = JsonSerializer.Deserialize<UpdateModelRequest>(requestBody);
+
+            // Extract values
+            string? name = data?.Name;
+            string? description = data?.Description;
+
+            // Update model if values are provided
+            if (!string.IsNullOrEmpty(name))
             {
                 await _dataServices.PredictionModels.UpdateModelName(id, name);
             }
 
-            if (description != null)
+            if (!string.IsNullOrEmpty(description))
             {
                 await _dataServices.PredictionModels.UpdateModelDescription(id, description);
             }

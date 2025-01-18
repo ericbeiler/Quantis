@@ -80,7 +80,7 @@ namespace Visavi.Quantis.Modeling
             var averageSpearmanRankCorrelation = cagrModelMetrics.Average(m => m?.CrossValidationMetrics?.AverageSpearmanRankCorrelation ?? 0);
             var averageMinPearsonCorrelation= cagrModelMetrics.Average(m => m?.CrossValidationMetrics?.MinimumPearsonCorrelation ?? 0);
             var averageMinSpearmanRankCorrelation = cagrModelMetrics.Average(m => m?.CrossValidationMetrics?.MinimumSpearmanRankCorrelation ?? 0);
-            var qualityScore = Math.Pow(averageRSquared * averagePearsonCorrelation * averageSpearmanRankCorrelation * averageMinPearsonCorrelation * averageMinSpearmanRankCorrelation, 0.2);
+            int qualityScore = Convert.ToInt32(100 * Math.Pow(averageRSquared * averagePearsonCorrelation * averageSpearmanRankCorrelation * averageMinPearsonCorrelation * averageMinSpearmanRankCorrelation, 0.2));
 
             try
             {

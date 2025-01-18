@@ -11,7 +11,6 @@ import PredictionTrend from "./PredictionTrend";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
-
 const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
 
   // Formatter function: Formats a numeric value to 2 decimal places or returns a default string.
@@ -74,9 +73,6 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[3]?.PredictedCagr),
       valueGetter: params => params.data?.PricePoints?.[3]?.PredictedCagr
     }
-    //    { field: 'EndingDate', headerName: 'Ending Date', width: 150 },
-    //    { field: 'ExpectedPriceRangeLow', headerName: 'Expected Low Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeLow) },
-    //    { field: 'ExpectedPriceRangeHigh', headerName: 'Expected High Price', width: 150, valueFormatter: params => formatToPrice(params?.data?.ExpectedPriceRangeHigh) },
   ];
   const [loading, setLoading] = useState(true);
 
@@ -97,7 +93,7 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
     };
 
     fetchPredictions();
-  }, [selectedModel]); // Empty dependency array means this runs once after the component mounts
+  }, [selectedModel]);
 
   // Prepare data for Highcharts based on the selected row
   const chartData = selectedPrediction
@@ -105,12 +101,13 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
       {
         name: selectedPrediction.Ticker,
         data: [
-          selectedPrediction.PricePoints?.[0]?.StartingPrice ?? 0,
-          selectedPrediction.PricePoints?.[0]?.PredictedEndingPrice ?? 0,
-          selectedPrediction.PricePoints?.[1]?.PredictedEndingPrice ?? 0,
-          selectedPrediction.PricePoints?.[2]?.PredictedEndingPrice ?? 0,
-          selectedPrediction.PricePoints?.[3]?.PredictedEndingPrice ?? 0,
-        ],
+          // Add StartingDate and StartingPrice for the first point
+          [selectedPrediction.PricePoints[0]?.StartingDate, selectedPrediction.PricePoints[0]?.StartingPrice],
+
+          // Add the EndingDate and PredictedEndingPrice points
+          ...selectedPrediction.PricePoints.map((point) => [point.EndingDate, point.PredictedEndingPrice]
+          ),
+        ].filter(([date, price]) => date && price !== undefined), // Filter out invalid points
       },
     ]
     : [];
@@ -123,9 +120,9 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
       text: "Prediction Trends",
     },
     xAxis: {
-      categories: ["Starting Price", "Year 1", "Year 2", "Year 3", "Year 5"],
+      type: "datetime",
       title: {
-        text: "Time Period",
+        text: "Date",
       },
     },
     yAxis: {

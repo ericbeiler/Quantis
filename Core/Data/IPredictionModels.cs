@@ -14,6 +14,6 @@ namespace Visavi.Quantis.Data
         Task UpdateModelState(int modelId, ModelState modelState);
         Task UpdateModelName(int modelId, string name);
         Task UpdateModelDescription(int modelId, string description);
-        Task UpdateQualityScore(int modelId, double qualityScore);
+        Task UpdateQualityScore(int modelId, int qualityScore);
     }
 }
