@@ -42,30 +42,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
         connection.on("modelUpdated", (updatedModel) => {
           console.log("Received model update:", updatedModel);
 
-          // Update the modelList state
-          setModelList((prevModels) =>
-            prevModels.map((model) =>
-              model.Id === updatedModel.Id ? { ...model, ...updatedModel } : model
-            )
-          );
-        });
-
-        // Subscribe to the "modelAdded" event
-        connection.on("modelAdded", (newModel) => {
-          console.log("Received new model:", newModel);
-
-          // Add the new model to the modelList state
-          setModelList((prevModels) => [...prevModels, newModel]);
-        });
-
-        // Subscribe to the "modelDeleted" event
-        connection.on("modelDeleted", (deletedModelId) => {
-          console.log("Received model delete:", deletedModelId);
-
-          // Remove the deleted model from the modelList state
-          setModelList((prevModels) =>
-            prevModels.filter((model) => model.Id !== deletedModelId)
-          );
+          fetchModels();
         });
       } catch (error) {
         console.error("Error starting SignalR connection:", error);
@@ -118,8 +95,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
         {modelList.map((model) => (
           <li
             key={model.Id}
-            className={`p-2 rounded-lg ${selectedModel === model.Id ? "bg-blue-100" : "bg-gray-100"
-              } hover:bg-blue-200`}
+            className={`p-4 rounded-lg ${selectedModel === model.Id ? "bg-blue-100" : "bg-gray-100"
+              } hover:bg-blue-200 flex flex-col justify-between`}
           >
             {editingModel === model.Id ? (
               <div className="space-y-2">
@@ -137,29 +114,36 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                 />
-                <button
-                  className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
-                  onClick={() => handleEditSave(model.Id)}
-                >
-                  Save
-                </button>
-                <button
-                  className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
-                  onClick={() => setEditingModel(null)}
-                >
-                  Cancel
-                </button>
+                <div className="flex justify-end space-x-2">
+                  <button
+                    className="rounded bg-green-500 px-4 py-2 text-white hover:bg-green-600"
+                    onClick={() => handleEditSave(model.Id)}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="rounded bg-gray-500 px-4 py-2 text-white hover:bg-gray-600"
+                    onClick={() => setEditingModel(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col space-y-2">
                 <div
                   className="cursor-pointer"
                   onClick={() => setSelectedModel(model.Id)}
                   title={`Model: ${model.Name}`}
                 >
                   {model.Name}
+                  <ul>
+                    <li><strong>State:</strong> {model.State}</li>
+                    <li><strong>Score:</strong> {model.QualityScore}</li>
+                    <li><strong>Created:</strong> {model.Created}</li>
+                  </ul>
                 </div>
-                <div className="flex space-x-2">
+                <div className="mt-auto flex justify-end space-x-2">
                   <button
                     className="text-blue-500 hover:text-blue-700"
                     onClick={() => {

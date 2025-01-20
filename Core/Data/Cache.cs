@@ -19,8 +19,8 @@ namespace Visavi.Quantis.Data
 
         public Cache(Connections connections, ILogger logger) : base(connections, logger)
         {
-            var tableExistsTask = TableExists(tableName);
-            if (!tableExistsTask.Result)
+            var tableExists = TableExists(tableName).Result;
+            if (tableExists.HasValue && !tableExists.Value)
             {
                 _ = ExecuteQuery(createCacheTableQuery).Result;
             }

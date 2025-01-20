@@ -4,7 +4,7 @@ namespace Visavi.Quantis.Data
 {
     public class ModelSummary
     {
-        internal ModelSummary(int id, DateTime created, string name, string description, ModelType type, double? qualityScore = null)
+        internal ModelSummary(int id, DateTime created, string name, string description, ModelType type, double? qualityScore = null, ModelState? state = null)
         {
             Id = id;
             Created = created;
@@ -12,6 +12,7 @@ namespace Visavi.Quantis.Data
             Description = description;
             Type = type;
             QualityScore = qualityScore;
+            State = state;
         }
 
         public int Id { get; set; }
@@ -20,5 +21,6 @@ namespace Visavi.Quantis.Data
         public ModelType Type { get; set; }
         public double? QualityScore { get; set; }
         public DateTime Created { get; set; }
+        public ModelState? State { get; set; }
     }
 }

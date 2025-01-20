@@ -38,7 +38,7 @@ namespace Visavi.Quantis.Data
 
         internal static ModelSummary ToModelSummary(this CompositeModelRecord model)
         {
-            return new ModelSummary(model.Id, model.CreatedTimestamp, model.Name ?? model.GetDefaultName(), model.Description ?? model.GetDefaultDescription(), ModelType.Composite, model.QualityScore);
+            return new ModelSummary(model.Id, model.CreatedTimestamp, model.Name ?? model.GetDefaultName(), model.Description ?? model.GetDefaultDescription(), ModelType.Composite, model.QualityScore, model.State);
         }
     }
 

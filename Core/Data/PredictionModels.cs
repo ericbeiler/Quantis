@@ -1,5 +1,6 @@
 ﻿using Azure.Storage.Blobs;
 using Dapper;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Text.Json;
@@ -61,7 +62,8 @@ namespace Visavi.Quantis.Data
 
         public async Task<int> CreateCompositeModel(TrainModelMessage trainModelMessage)
         {
-            if (!(await TableExists(compositeTableName)))
+            var tableExists = await TableExists(compositeTableName);
+            if (tableExists.HasValue && !tableExists.Value)
             {
                 await ExecuteQuery(createCompositeModelsTableQuery);
             }
@@ -115,7 +117,8 @@ namespace Visavi.Quantis.Data
 
         public async Task<IEnumerable<ModelSummary>> GetModelSummaryList(ModelType modelType = ModelType.Composite, bool includeDeleted = false)
         {
-            if (!(await TableExists(compositeTableName)))
+            var tableExists = await TableExists(compositeTableName);
+            if (tableExists.HasValue && !tableExists.Value)
             {
                 await ExecuteQuery(createCompositeModelsTableQuery);
             }
@@ -188,14 +191,16 @@ namespace Visavi.Quantis.Data
 
             _logger?.LogInformation("Saved Model, updating metadata");
 
-            if (!(await TableExists(cagrRegressionModelsTableName)))
+            var tableExists = await TableExists(cagrRegressionModelsTableName);
+            if (tableExists.HasValue && !tableExists.Value)
             {
                 await ExecuteQuery(createCagrRegressioModelsTableQuery);
             }
             using var connection = _connections.DbConnection;
-            await connection.ExecuteAsync("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared]," +
+            var modelId = await connection.QuerySingleAsync<int>("INSERT INTO CagrRegressionModels ([Type], [Index], [TargetDuration], [Timestamp], [Path], [CompositeId], [MeanAbsoluteError], [RootMeanSquaredError], [LossFunction], [RSquared]," +
                                             "[AveragePearsonCorrelation],[MinimumPearsonCorrelation],[AverageSpearmanRankCorrelation],[MinimumSpearmanRankCorrelation],[CrossValAverageMeanAbsoluteError],[CrossValMaximumMeanAbsoluteError]," +
                                             "[CrossValAverageRootMeanSquaredError],[CrossValMaximumRootMeanSquaredError],[CrossValAverageRSquared],[CrossValMaximumRSquared])" +
+                                            "OUTPUT INSERTED.Id " + // Include the OUTPUT clause to return the newly inserted ID
                                             "Values (@Type, @Index, @TargetDuration, @Timestamp, @Path, @CompositeId, @MeanAbsoluteError, @RootMeanSquaredError, @LossFunction, @RSquared," +
                                             "@AveragePearsonCorrelation, @MinimumPearsonCorrelation, @AverageSpearmanRankCorrelation, @MinimumSpearmanRankCorrelation, @CrossValAverageMeanAbsoluteError, @CrossValMaximumMeanAbsoluteError," +
                                             "@CrossValAverageRootMeanSquaredError, @CrossValMaximumRootMeanSquaredError, @CrossValAverageRSquared, @CrossValMaximumRSquared)",
@@ -222,6 +227,28 @@ namespace Visavi.Quantis.Data
                                         CrossValAverageRSquared = regressionModel?.Metrics?.CrossValidationMetrics?.AverageRSquared,
                                         CrossValMaximumRSquared = regressionModel?.Metrics?.CrossValidationMetrics?.MaximumRSquared
                                     });
+
+            _logger?.LogInformation($"Saved Model {modelId}");
+            fireAndForgetModelUpdated(modelId);
+        }
+
+        private void fireAndForgetModelUpdated(int modelId)
+        {
+            _ = notifyModelUpdatedAsync(modelId);
+        }
+
+        private async Task notifyModelUpdatedAsync(int modelId)
+        {
+            try
+            {
+                string modelDetailsJson = modelId > 0 ? JsonSerializer.Serialize(await GetCompositeModelDetails(modelId)) : "";
+                var eventHub = await _connections.EventHub();
+                await eventHub.Clients.All.SendAsync("modelUpdated", JsonSerializer.Serialize(modelDetailsJson));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error notifying model updated for model {modelId}");
+            }
         }
 
         public async Task UpdateModelState(int modelId, ModelState state)
@@ -230,6 +257,8 @@ namespace Visavi.Quantis.Data
             {
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET State = @state, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { State = state, @timestamp = DateTime.UtcNow, Id = modelId });
+
+                fireAndForgetModelUpdated(modelId);
             }
             catch (Exception ex)
             {
@@ -244,6 +273,8 @@ namespace Visavi.Quantis.Data
             {
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET Name = @name, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { Name = name, @timestamp = DateTime.UtcNow, Id = modelId });
+
+                fireAndForgetModelUpdated(modelId);
             }
             catch (Exception ex)
             {
@@ -258,6 +289,8 @@ namespace Visavi.Quantis.Data
             {
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET Description = @description, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { Description = description, @timestamp = DateTime.UtcNow, Id = modelId });
+
+                fireAndForgetModelUpdated(modelId);
             }
             catch (Exception ex)
             {
@@ -272,6 +305,8 @@ namespace Visavi.Quantis.Data
             {
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET QualityScore = @QualityScore WHERE Id = @Id", new { QualityScore = qualityScore, Id = modelId });
+
+                fireAndForgetModelUpdated(modelId);
             }
             catch (Exception ex)
             {

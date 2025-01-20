@@ -35,10 +35,10 @@ namespace Visavi.Quantis.Data
             }
         }
 
-        protected async Task<bool> TableExists(string tableName)
+        protected async Task<bool?> TableExists(string tableName)
         {
             var tables = await ExecuteQuery($"SELECT * FROM sys.objects  WHERE object_id = OBJECT_ID('{tableName}') AND type = 'U'");
-            return tables != null && tables.Count() > 0;
+            return tables?.Count() > 0;
         }
     }
 }

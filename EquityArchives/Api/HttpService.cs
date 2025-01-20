@@ -180,10 +180,18 @@ namespace Visavi.Quantis.Api
             return new OkResult();
         }
 
+        public class QueantisEventConnectionInfo
+        {
+            public string Url { get; set; }
+
+            public string AccessToken { get; set; }
+        }
+
+
         [Function("negotiate")]
         public async Task<HttpResponseData> Negotiate(
             [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req,
-            [SignalRConnectionInfoInput(HubName = "events")] SignalRConnectionInfo connectionInfo)
+            [SignalRConnectionInfoInput(HubName = "events")] QueantisEventConnectionInfo connectionInfo)
         {
             _logger.LogInformation($"SignalR Connection URL = '{connectionInfo.Url}'");
 
