@@ -79,12 +79,14 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
   useEffect(() => {
     const fetchPredictions = async () => {
       try {
-        // Fetch the data from the API
-        const response = await fetch(`${serverUrl}api/Predictions/${selectedModel}?ticker=SPY`);
-        const predictionArray = await response.json();
+        if (selectedModel > 0) {
+          // Fetch the data from the API
+          const response = await fetch(`${serverUrl}api/Predictions/${selectedModel}?ticker=SPY`);
+          const predictionArray = await response.json();
 
-        // Update state
-        setRowData(predictionArray);
+          // Update state
+          setRowData(predictionArray);
+        }
       } catch (error) {
         console.error("Error fetching predictions:", error);
       } finally {

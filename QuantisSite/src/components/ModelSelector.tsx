@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import ModelSummary from "./ModelSummary";
 import ModelSelectorProps from "./ModelSelectorProps";
+import * as signalR from "@microsoft/signalr";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
@@ -22,6 +23,61 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
     };
 
     fetchModels();
+
+    // Set up SignalR connection
+    const negotiateUrl = serverUrl + 'api';
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(negotiateUrl)
+      .withAutomaticReconnect()
+      .configureLogging(signalR.LogLevel.Debug)
+      .build();
+
+    // Start the SignalR connection
+    const startConnection = async () => {
+      try {
+        await connection.start();
+        console.log("SignalR Connected");
+
+        // Subscribe to the "modelUpdated" event
+        connection.on("modelUpdated", (updatedModel) => {
+          console.log("Received model update:", updatedModel);
+
+          // Update the modelList state
+          setModelList((prevModels) =>
+            prevModels.map((model) =>
+              model.Id === updatedModel.Id ? { ...model, ...updatedModel } : model
+            )
+          );
+        });
+
+        // Subscribe to the "modelAdded" event
+        connection.on("modelAdded", (newModel) => {
+          console.log("Received new model:", newModel);
+
+          // Add the new model to the modelList state
+          setModelList((prevModels) => [...prevModels, newModel]);
+        });
+
+        // Subscribe to the "modelDeleted" event
+        connection.on("modelDeleted", (deletedModelId) => {
+          console.log("Received model delete:", deletedModelId);
+
+          // Remove the deleted model from the modelList state
+          setModelList((prevModels) =>
+            prevModels.filter((model) => model.Id !== deletedModelId)
+          );
+        });
+      } catch (error) {
+        console.error("Error starting SignalR connection:", error);
+      }
+    };
+
+    startConnection();
+
+    // Clean up the connection when the component unmounts
+    return () => {
+      connection.stop().catch((error) => console.error("Error stopping SignalR connection:", error));
+    };
   }, []);
 
   const handleDelete = async (id: number) => {

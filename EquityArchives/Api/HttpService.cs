@@ -3,7 +3,10 @@ using Azure.Storage.Queues.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+using Microsoft.Azure.SignalR.Management;
 using Microsoft.Extensions.Logging;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -175,6 +178,28 @@ namespace Visavi.Quantis.Api
         {
             await _dataServices.PredictionModels.UpdateModelState(id, ModelState.Deleted);
             return new OkResult();
+        }
+
+        [Function("negotiate")]
+        public async Task<HttpResponseData> Negotiate(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req,
+            [SignalRConnectionInfoInput(HubName = "events")] SignalRConnectionInfo connectionInfo)
+        {
+            _logger.LogInformation($"SignalR Connection URL = '{connectionInfo.Url}'");
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            response.Headers.Add("Content-Type", "application/json; charset=utf-8");
+
+            // Serialize the connection info to JSON
+            var responseBody = new
+            {
+                url = connectionInfo.Url,
+                accessToken = connectionInfo.AccessToken
+            };
+
+            await response.WriteStringAsync(JsonSerializer.Serialize(responseBody));
+
+            return response;
         }
 
         [Function("Predictions")]
