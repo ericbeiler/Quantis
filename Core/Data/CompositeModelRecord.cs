@@ -2,15 +2,6 @@
 
 namespace Visavi.Quantis.Data
 {
-    public enum ModelState
-    {
-        Deleted = -2,
-        Failed = -1,
-        Created = 0,
-        Training = 1,
-        Trained = 2
-    };
-
     internal class CompositeModelRecord
     {
         public int Id { get; set; }

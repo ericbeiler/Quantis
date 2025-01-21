@@ -88,9 +88,14 @@ namespace Visavi.Quantis.Modeling
                 if (_trainingParameters.CompositeModelId != null)
                 {
                     await _dataServices.PredictionModels.UpdateQualityScore(_trainingParameters.CompositeModelId.Value, qualityScore);
-                    await _dataServices.PredictionModels.UpdateModelState(_trainingParameters.CompositeModelId.Value, fullyTrained ? ModelState.Trained : ModelState.Failed);
+                    await _dataServices.PredictionModels.UpdateModelState(_trainingParameters.CompositeModelId.Value, fullyTrained ? ModelState.Publishing : ModelState.Failed);
                 }
+
                 await cacheTickerProjections();
+                if (_trainingParameters.CompositeModelId != null && fullyTrained)
+                {
+                    await _dataServices.PredictionModels.UpdateModelState(_trainingParameters.CompositeModelId.Value, ModelState.Ready);
+                }
             }
             catch (Exception ex)
             {

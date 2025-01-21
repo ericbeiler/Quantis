@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import ModelSummary from "./ModelSummary";
 import ModelSelectorProps from "./ModelSelectorProps";
+import ModelState from "./ModelState";
 import * as signalR from "@microsoft/signalr";
 
 const serverUrl = import.meta.env.VITE_SERVER;
@@ -138,7 +139,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
                 >
                   {model.Name}
                   <ul>
-                    <li><strong>State:</strong> {model.State}</li>
+                      <li><strong>State:</strong> {ModelState[model.State]}</li>
                     <li><strong>Score:</strong> {model.QualityScore}</li>
                     <li><strong>Created:</strong> {model.Created}</li>
                   </ul>

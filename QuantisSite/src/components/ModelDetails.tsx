@@ -1,5 +1,7 @@
 ﻿import React, { useState } from "react";
 import CompositeModelDetail from "./CompositeModelDetail";
+import ModelType from "./ModelType";
+import TrainingGranularity from "./TrainingGranularity";
 
 type ModelDetailsProps = {
   selectedModel: number;
@@ -49,7 +51,7 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
         <li><strong>Name:</strong> {modelDetails.Name}</li>
         <li><strong>Description:</strong> {modelDetails.Description}</li>
         <li><strong>Quality Score:</strong> {formatInteger(modelDetails.QualityScore)}</li>
-        <li><strong>Type:</strong> {modelDetails.Type}</li>
+        <li><strong>Type:</strong> {ModelType[modelDetails.Type]}</li>
         <li><strong>ID:</strong> {modelDetails.Id}</li>
 
         <li>
@@ -66,7 +68,7 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
               <li><strong>Index:</strong> {modelDetails.TrainingParameters.Index}</li>
               <li><strong>DatasetSizeLimit:</strong> {modelDetails.TrainingParameters.DatasetSizeLimit}</li>
               <li><strong>Algorithm:</strong> {modelDetails.TrainingParameters.Algorithm}</li>
-              <li><strong>Granularity:</strong> {modelDetails.TrainingParameters.Granularity}</li>
+              <li><strong>Granularity:</strong> {TrainingGranularity[modelDetails.TrainingParameters.Granularity ?? TrainingGranularity.Monthly]}</li>
               <li><strong>MaxTrainingTime:</strong> {modelDetails.TrainingParameters.MaxTrainingTime}</li>
               <li><strong>NumberOfTrees:</strong> {modelDetails.TrainingParameters.NumberOfTrees}</li>
               <li><strong>NumberOfLeaves:</strong> {modelDetails.TrainingParameters.NumberOfLeaves}</li>

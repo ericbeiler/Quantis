@@ -1,3 +1,4 @@
+import ModelType from "./ModelType.ts";
 import RegressionModelDetail from "./RegressionModelDetail.ts"
 import TrainingParameters from "./TrainingParameters.ts"
 
@@ -6,7 +7,7 @@ interface CompositeModelDetail {
   Id: number;
   Name: string;
   Description: string;
-  Type: number;
+  Type: ModelType;
   RegressionModelDetails: RegressionModelDetail[];
   QualityScore: number;
 }
