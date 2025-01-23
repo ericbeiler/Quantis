@@ -9,6 +9,7 @@ using Visavi.Quantis.Data;
 using static Microsoft.ML.TrainCatalogBase;
 using Tensorflow;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Visavi.Quantis.Modeling
 {
@@ -37,6 +38,8 @@ namespace Visavi.Quantis.Modeling
                     , nameof(PredictionModelInput.BookToMarketValue), nameof(PredictionModelInput.OperatingIncomeToEnterpriseValue), nameof(PredictionModelInput.AltmanZScore)
                     , nameof(PredictionModelInput.DividendYield), nameof(PredictionModelInput.PriceToEarningsAdjusted)];
 
+        private static readonly string[] DefaultInputs = numericInputColumnNames; // Include all data as inputs by default
+
         private readonly ILogger _logger;
         private readonly DateTime _timestamp = DateTime.Now;
         private MLContext _mlContext = new MLContext();
@@ -53,7 +56,7 @@ namespace Visavi.Quantis.Modeling
 
         public RegressionModel(IDataServices dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null,
                                 uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit = null, int? numberOfTrees = null, int? numberOfLeaves = null,
-                                int? minimumExampleCountPerLeaf = null, TrainingGranularity? grainularity = null)
+                                int? minimumExampleCountPerLeaf = null, TrainingGranularity? grainularity = null, string[]? featureList = null)
         {
             Timestamp = DateTime.Now;
             _dataServices = dataServices;
@@ -68,11 +71,13 @@ namespace Visavi.Quantis.Modeling
             _numberOfLeaves = numberOfLeaves ?? defaultNumberOfLeaves;
             _minimumExampleCountPerLeaf = minimumExampleCountPerLeaf ?? defaultMinimumExampleCountPerLeaf;
             _grainularity = grainularity ?? TrainingGranularity.Daily;
+            Features = featureList.IsNullOrEmpty() ? DefaultInputs : featureList ?? DefaultInputs;
 
             _mlContext.Log += (_, e) => logMlMessage(e.Kind, e.Message);
         }
 
         public int? CompositeId { get; }
+        public string[] Features { get; }
         public DateTime Timestamp { get; }
         public string IndexTicker { get; }
         public int TargetDurationInMonths { get; }
@@ -129,7 +134,7 @@ namespace Visavi.Quantis.Modeling
                                         .Append(_mlContext.Transforms.NormalizeMeanVariance(outputColumnName: nameof(PredictionModelInput.AltmanZScore)))
                                         .Append(_mlContext.Transforms.NormalizeMeanVariance(outputColumnName: nameof(PredictionModelInput.DividendYield)))
                                         .Append(_mlContext.Transforms.NormalizeMeanVariance(outputColumnName: nameof(PredictionModelInput.PriceToEarningsAdjusted)))
-                                        .Append(_mlContext.Transforms.Concatenate("Features", numericInputColumnNames));
+                                        .Append(_mlContext.Transforms.Concatenate("Features", Features));
 
             return dataProcessPipeline;
         }
@@ -444,146 +449,3 @@ namespace Visavi.Quantis.Modeling
 
     }
 }
-
-// TODO: Add this functionality
-/*
- * To measure how well cross-validated models infer each other's outputs, you can evaluate **agreement or consistency** between the models across folds. This process involves:
-
-1. Generating predictions from each model for a common dataset (e.g., the validation data from all folds or an entirely separate dataset).
-2. Comparing these predictions across folds to assess how similar or consistent they are.
-
-Here’s how you can implement and analyze this:
-
----
-
-### **Approach: Agreement Between Models**
-1. **Generate Predictions from Each Model**:
-   - After performing cross-validation, use each fold’s model to predict on the same dataset (e.g., all training data or a holdout test set).
-
-2. **Measure Agreement**:
-   - Calculate agreement metrics like:
-     - **Correlation** (e.g., Pearson or Spearman correlation) between predictions of different models.
-     - **Mean Absolute Difference** or **Root Mean Squared Difference** between predictions.
-     - **Ranking Consistency**: Compare how models rank instances (important in financial modeling where relative ranking matters).
-
-3. **Visualize Agreement**:
-   - Use scatter plots or heatmaps to visualize the correlation or agreement between predictions from different models.
-
----
-
-### **Implementation Example**
-
-```csharp
-private void EvaluateCrossValidationModelAgreement(IDataView dataToEvaluate)
-{
-    var dataProcessPipeline = buildDataPipeline();
-    var trainer = _mlContext.Regression.Trainers.FastTree(
-        numberOfTrees: _numberOfTrees,
-        numberOfLeaves: _numberOfLeaves,
-        minimumExampleCountPerLeaf: _minimumExampleCountPerLeaf
-    );
-
-    var trainingPipeline = dataProcessPipeline.Append(trainer);
-
-    // Perform cross-validation
-    var crossValidationResults = _mlContext.Regression.CrossValidate(
-        data: _trainAndTestData.TrainSet,
-        estimator: trainingPipeline,
-        numberOfFolds: 4
-    );
-
-    // Store predictions from each model
-    var predictionsList = new List<float[]>();
-
-    foreach (var result in crossValidationResults)
-    {
-        var model = result.Model;
-
-        // Predict on the same dataset for all models
-        var transformedData = model.Transform(dataToEvaluate);
-        var predictions = _mlContext.Data.CreateEnumerable<PredictionResult>(
-            transformedData, reuseRowObject: false
-        )
-        .Select(pred => pred.Score)
-        .ToArray();
-
-        predictionsList.Add(predictions);
-    }
-
-    // Compare predictions between models
-    for (int i = 0; i < predictionsList.Count; i++)
-    {
-        for (int j = i + 1; j < predictionsList.Count; j++)
-        {
-            var correlation = CalculatePearsonCorrelation(predictionsList[i], predictionsList[j]);
-            _logger.LogInformation($"Correlation between Model {i} and Model {j}: {correlation}");
-        }
-    }
-}
-
-private float CalculatePearsonCorrelation(float[] x, float[] y)
-{
-    var meanX = x.Average();
-    var meanY = y.Average();
-
-    var numerator = x.Zip(y, (xi, yi) => (xi - meanX) * (yi - meanY)).Sum();
-    var denominator = Math.Sqrt(x.Sum(xi => Math.Pow(xi - meanX, 2)) * y.Sum(yi => Math.Pow(yi - meanY, 2)));
-
-    return (float)(numerator / denominator);
-}
-
-public class PredictionResult
-{
-    public float Score { get; set; }
-}
-```
-
----
-
-### **Explanation of Code**:
-1. **Cross-Validation**:
-   - Perform cross-validation and store each fold's model in `crossValidationResults`.
-
-2. **Generate Predictions**:
-   - Use each fold's model to predict on the same dataset (`dataToEvaluate`), and store the predictions in a list.
-
-3. **Calculate Agreement**:
-   - Compare predictions between each pair of models using a similarity metric like **Pearson correlation**.
-
-4. **Log Results**:
-   - Log correlation values to evaluate agreement between models.
-
----
-
-### **Metrics for Agreement**:
-- **Pearson Correlation Coefficient**:
-   Measures linear relationship between two sets of predictions.
-   - Values close to 1 indicate strong agreement.
-   - Values close to 0 indicate little or no linear relationship.
-- **Mean Absolute Difference**:
-   Average absolute difference between predictions.
-   - Lower values indicate higher agreement.
-- **Spearman Rank Correlation**:
-   Compares relative rankings of predictions (useful for financial modeling).
-
----
-
-### **Benefits of This Approach**:
-1. **Consistency Check**:
-   - High agreement suggests that the model is stable and generalizes well across folds.
-2. **Insight into Variance**:
-   - Low agreement could indicate high variance or sensitivity to specific training subsets.
-
----
-
-### **Visualization Ideas**:
-- **Scatter Plots**:
-   Compare predictions for two models with a scatter plot.
-- **Heatmap**:
-   Visualize pairwise correlation coefficients across all models.
-- **Box Plot**:
-   Show the distribution of prediction differences across folds.
-
-This approach helps assess the robustness and consistency of your cross-validated models, which is critical in financial modeling tasks.
-
-*/

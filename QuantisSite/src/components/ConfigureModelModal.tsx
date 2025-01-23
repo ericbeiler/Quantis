@@ -1,20 +1,11 @@
 ﻿import React, { useState } from "react";
-
-export enum TrainingGranularity {
-  Daily = "Daily",
-  Weekly = "Weekly",
-  Monthly = "Monthly",
-}
+import TrainingGranularity from "./TrainingGranularity";
+import ModelConfiguration from "./ModelConfiguration";
 
 interface ConfigureModelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (parameters: {
-    numberOfTrees: number;
-    numberOfLeaves: number;
-    minimumExampleCountPerLeaf: number;
-    trainingGranularity: TrainingGranularity;
-  }) => void;
+  onSubmit: (parameters: ModelConfiguration) => void;
 }
 
 const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
@@ -22,14 +13,32 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
   onClose,
   onSubmit,
 }) => {
-  const [parameters, setParameters] = useState({
-    numberOfTrees: 100,
-    numberOfLeaves: 20,
-    minimumExampleCountPerLeaf: 10,
-    trainingGranularity: TrainingGranularity.Monthly,
+  React.useEffect(() => {
+    const fetchFeatureList = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SERVER}api/FeatureList`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch current feature list");
+        }
+        const data: string[] = await response.json();
+        setFeatureList(data);
+      } catch (error) {
+        console.error("Error fetching feature list:", error);
+      }
+    };
+    fetchFeatureList();
+  }, []);
+
+  const [parameters, setParameters] = useState<ModelConfiguration>({
+    NumberOfTrees: 100,
+    NumberOfLeaves: 20,
+    MinimumExampleCountPerLeaf: 10,
+    Granularity: TrainingGranularity.Monthly,
+    Features: [],
   });
 
-  const [showInfo, setShowInfo] = useState(false); // Track info modal visibility
+  const [showInfo, setShowInfo] = useState(false);
+  const [featureList, setFeatureList] = useState<string[]>([]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -44,6 +53,15 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
     setParameters((prev) => ({
       ...prev,
       [name]: value,
+    }));
+  };
+
+  const handleFeatureToggle = (feature: string) => {
+    setParameters((prev) => ({
+      ...prev,
+      Features: prev.Features.includes(feature)
+        ? prev.Features.filter((f) => f !== feature)
+        : [...prev.Features, feature],
     }));
   };
 
@@ -64,7 +82,7 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
           </label>
           <select
             name="trainingGranularity"
-            value={parameters.trainingGranularity}
+            value={parameters.Granularity}
             onChange={handleSelectChange}
             className="mt-1 w-full rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500"
             disabled
@@ -82,8 +100,8 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
           </label>
           <input
             type="number"
-            name="numberOfTrees"
-            value={parameters.numberOfTrees}
+            name="NumberOfTrees"
+            value={parameters.NumberOfTrees}
             onChange={handleInputChange}
             className="mt-1 w-full rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500"
           />
@@ -94,8 +112,8 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
           </label>
           <input
             type="number"
-            name="numberOfLeaves"
-            value={parameters.numberOfLeaves}
+            name="NumberOfLeaves"
+            value={parameters.NumberOfLeaves}
             onChange={handleInputChange}
             className="mt-1 w-full rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500"
           />
@@ -106,11 +124,33 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
           </label>
           <input
             type="number"
-            name="minimumExampleCountPerLeaf"
-            value={parameters.minimumExampleCountPerLeaf}
+            name="MinimumExampleCountPerLeaf"
+            value={parameters.MinimumExampleCountPerLeaf}
             onChange={handleInputChange}
             className="mt-1 w-full rounded border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500"
           />
+        </div>
+        <div>
+          <label className="block flex-grow text-sm font-medium text-gray-700">
+            Features
+          </label>
+          <ul className="space-y-2">
+            {featureList.map((feature) => (
+              <li key={feature} className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={feature}
+                  value={feature}
+                  checked={parameters?.Features === null || parameters.Features.includes(feature)}
+                  onChange={() => handleFeatureToggle(feature)}
+                  className="mr-2"
+                />
+                <label htmlFor={feature} className="text-sm">
+                  {feature}
+                </label>
+              </li>
+            ))}
+          </ul>
         </div>
         <div>
           <button
@@ -120,7 +160,7 @@ const ConfigureModelModal: React.FC<ConfigureModelModalProps> = ({
             Parameter Descriptions
           </button>
         </div>
-        <div className="flex justify-end">
+        <div className="mt-4 flex justify-end">
           <button
             className="mr-2 rounded bg-gray-200 px-4 py-2 shadow hover:bg-gray-300"
             onClick={onClose}

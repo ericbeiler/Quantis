@@ -73,6 +73,14 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
               <li><strong>NumberOfTrees:</strong> {modelDetails.TrainingParameters.NumberOfTrees}</li>
               <li><strong>NumberOfLeaves:</strong> {modelDetails.TrainingParameters.NumberOfLeaves}</li>
               <li><strong>MinimumExampleCountPerLeaf:</strong> {modelDetails.TrainingParameters.MinimumExampleCountPerLeaf}</li>
+              <li>
+                <strong>Modelled Features</strong>
+                <ul> {modelDetails.TrainingParameters.Features?.map((feature) => (
+                  <li key={feature}>
+                    {feature}
+                  </li>))}
+                </ul>
+              </li>
             </ul>
           )}
         </li>

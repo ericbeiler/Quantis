@@ -115,7 +115,7 @@ namespace Visavi.Quantis.Modeling
                                                             _trainingParameters.CompositeModelId, totalSeconds,
                                                             _trainingParameters.DatasetSizeLimit, _trainingParameters.NumberOfTrees,
                                                             _trainingParameters.NumberOfLeaves, _trainingParameters.MinimumExampleCountPerLeaf,
-                                                            _trainingParameters.Granularity);
+                                                            _trainingParameters.Granularity, _trainingParameters.Features);
                 _ = regressionModel.Train();
                 modelQualityMetrics = regressionModel.Evaluate();
                 await regressionModel.Save();

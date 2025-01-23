@@ -10,6 +10,7 @@ namespace Visavi.Quantis.Data
         Task<CompositeModelDetails> GetCompositeModelDetails(int compositeModelId);
         Task<PriceTrendPredictor> GetPriceTrendPredictor(int compositeModelId);
         Task<IPredictor> GetPricePredictor(int id);
+        string[] GetFeatureList();
         Task SaveModel(string modelName, RegressionModel trainedModel);
         Task UpdateModelState(int modelId, ModelState modelState);
         Task UpdateModelName(int modelId, string name);

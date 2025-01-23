@@ -89,6 +89,30 @@ namespace Visavi.Quantis.Data
             return await dbConnection.QueryAsync<CagrRegressionModelRecord>("SELECT * FROM CagrRegressionModels WHERE CompositeId = @CompositeId", new { CompositeId = compositeModelId });
         }
 
+        public string[] GetFeatureList()
+        {
+            return
+            [
+                nameof(PredictionModelInput.MarketCap),
+                nameof(PredictionModelInput.PriceToEarningsQuarterly),
+                nameof(PredictionModelInput.PriceToEarningsTTM),
+                nameof(PredictionModelInput.PriceToSalesQuarterly),
+                nameof(PredictionModelInput.PriceToSalesTTM),
+                nameof(PredictionModelInput.PriceToBookValue),
+                nameof(PredictionModelInput.PriceToFreeCashFlowQuarterly),
+                nameof(PredictionModelInput.PriceToFreeCashFlowTTM),
+                nameof(PredictionModelInput.EnterpriseValue),
+                nameof(PredictionModelInput.EnterpriseValueToEBITDA),
+                nameof(PredictionModelInput.EnterpriseValueToSales),
+                nameof(PredictionModelInput.EnterpriseValueToFreeCashFlow),
+                nameof(PredictionModelInput.BookToMarketValue),
+                nameof(PredictionModelInput.OperatingIncomeToEnterpriseValue),
+                nameof(PredictionModelInput.AltmanZScore),
+                nameof(PredictionModelInput.DividendYield),
+                nameof(PredictionModelInput.PriceToEarningsAdjusted)
+            ];
+        }
+
         private async Task<TrainingParameters> getTrainingParameters(int compositeModelId)
         {
             using var dbConnection = _connections.DbConnection;

@@ -1,6 +1,6 @@
-import { TrainingGranularity } from "./ConfigureModelModal";
+import TrainingGranularity from "./TrainingGranularity";
 
-interface TrainingParameters {
+interface RegressionTrainingParameters {
   CompositeModelId: number | null;
   TargetDurationsInMonths: number[] | null;
   Index: string | null;
@@ -11,6 +11,7 @@ interface TrainingParameters {
   NumberOfTrees: number | null;
   NumberOfLeaves: number | null;
   MinimumExampleCountPerLeaf: number | null;
+  Features: string[] | null;
 }
 
-export default TrainingParameters
+export default RegressionTrainingParameters

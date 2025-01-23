@@ -33,26 +33,26 @@ namespace Visavi.Quantis.Api
             _dataServices = dataServices;
         }
 
-
         /// <summary>
-        /// Queues a model for training.
+        /// Collates the training parameters from the request query and body. The request favors parameters included
+        /// in the query over the body for legacy purposes.
         /// </summary>
-        /// <param name="req"></param>
-        /// <param name="id"></param>
+        /// <param name="request"></param>
         /// <returns></returns>
-        [Function("PostModel")]
-        public async Task<IActionResult> PostEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post"], Route = "Model")] HttpRequest req)
+        /// <exception cref="BadHttpRequestException"></exception>
+        private async Task<TrainingParameters> collateRequestTrainingParameters(HttpRequest request)
         {
-            req.Query.TryGetValue("equityIndex", out var equityIndex);
-            req.Query.TryGetValue("targetDurations", out var targetDurations);
-            req.Query.TryGetValue("datasetSizeLimit", out var _datasetSizeLimit);
-            req.Query.TryGetValue("algorithm", out var _algorithm);
-            req.Query.TryGetValue("numberOfTrees", out var _numberOfTrees);
-            req.Query.TryGetValue("numberOfLeaves", out var _numberOfLeaves);
-            req.Query.TryGetValue("granularity", out var _granularity);
-            req.Query.TryGetValue("minimumExampleCountPerLeaf", out var _minimumExampleCountPerLeaf);
-            req.Query.TryGetValue("name", out var _name);
-            req.Query.TryGetValue("description", out var _description);
+            request.Query.TryGetValue("equityIndex", out var equityIndex);
+            request.Query.TryGetValue("targetDurations", out var targetDurations);
+            request.Query.TryGetValue("datasetSizeLimit", out var _datasetSizeLimit);
+            request.Query.TryGetValue("algorithm", out var _algorithm);
+            request.Query.TryGetValue("numberOfTrees", out var _numberOfTrees);
+            request.Query.TryGetValue("numberOfLeaves", out var _numberOfLeaves);
+            request.Query.TryGetValue("granularity", out var _granularity);
+            request.Query.TryGetValue("minimumExampleCountPerLeaf", out var _minimumExampleCountPerLeaf);
+            request.Query.TryGetValue("name", out var _name);
+            request.Query.TryGetValue("description", out var _description);
+
             string? datasetSizeLimit = _datasetSizeLimit.FirstOrDefault();
             string? algorithm = _algorithm.FirstOrDefault();
             string? numberOfTrees = _numberOfTrees.FirstOrDefault();
@@ -72,7 +72,7 @@ namespace Visavi.Quantis.Api
                 }
                 catch (Exception ex)
                 {
-                    return new BadRequestObjectResult($"{algorithm} is not a valid algorithm. Try FastTree or Auto instead.");
+                    throw new BadHttpRequestException($"{algorithm} is not a valid algorithm. Try FastTree or Auto instead.", ex);
                 };
             }
 
@@ -85,35 +85,85 @@ namespace Visavi.Quantis.Api
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, $"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.");  
-                    return new BadRequestObjectResult($"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.");
+                    _logger.LogWarning(ex, $"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.");
+                    throw new BadHttpRequestException($"{algorithm} is not a valid grainularity. Try Daily or Monthly instead.", ex);
                 };
             }
 
             if (targetDurationsInMonths != null && targetDurationsInMonths.Any(duration => !PricePointPredictor.IsValidDuration(duration)))
             {
-                return new BadRequestObjectResult($"{targetDurationsInMonths} is not a valid Target Duration. Try 12, 24, 36 or 60 instead.");
+                throw new BadHttpRequestException($"{targetDurationsInMonths} is not a valid Target Duration. Try 12, 24, 36 or 60 instead.");
             }
 
-            _logger?.LogInformation("Queuing Training of Model.");
-
-            var receipt = await sendModelingMessage(new TrainModelMessage(new TrainingParameters()
+            // Read the request body
+            string requestBody = await new StreamReader(request.Body).ReadToEndAsync();
+            var collatedParameters = JsonSerializer.Deserialize<TrainingParameters>(requestBody) ?? new TrainingParameters();
+            if (!string.IsNullOrWhiteSpace(datasetSizeLimit))
             {
-                TargetDurationsInMonths = targetDurationsInMonths,
-                Index = equityIndex,
-                DatasetSizeLimit = datasetSizeLimit != null ? Convert.ToInt32(datasetSizeLimit) : null,
-                Algorithm = trainingAlgorithm,
-                NumberOfTrees = numberOfTrees != null ? Convert.ToInt32(numberOfTrees) : null,
-                NumberOfLeaves = numberOfLeaves != null ? Convert.ToInt32(numberOfLeaves) : null,
-                MinimumExampleCountPerLeaf = minimumExampleCountPerLeaf != null ? Convert.ToInt32(minimumExampleCountPerLeaf) : null,
-                Granularity = trainingGrainularity
-            }, name, description));
+                collatedParameters.DatasetSizeLimit = Convert.ToInt32(datasetSizeLimit);
+            }
+            if (!string.IsNullOrEmpty(equityIndex))
+            {
+                collatedParameters.Index = equityIndex;
+            }
+            if (targetDurationsInMonths != null)
+            {
+                collatedParameters.TargetDurationsInMonths = targetDurationsInMonths;
+            }
+            if (trainingAlgorithm != null)
+            {
+                collatedParameters.Algorithm = trainingAlgorithm;
+            }
+            if (numberOfTrees != null)
+            {
+                collatedParameters.NumberOfTrees = Convert.ToInt32(numberOfTrees);
+            }
+            if (numberOfLeaves != null)
+            {
+                collatedParameters.NumberOfLeaves = Convert.ToInt32(numberOfLeaves);
+            }
+            if (minimumExampleCountPerLeaf != null)
+            {
+                collatedParameters.MinimumExampleCountPerLeaf = Convert.ToInt32(minimumExampleCountPerLeaf);
+            }
+            if (trainingGrainularity != null)
+            {
+                collatedParameters.Granularity = trainingGrainularity;
+            }
+            return collatedParameters;
+        }
 
-            var resultText = $"Training of Model {name} Queued, Index: {equityIndex}, Target Duration (Months): {targetDurationsInMonths}, Algorithm: {algorithm}, Granularity: {granularity}, " +
-                                                                $"Number of Trees: {numberOfTrees}, Number of Leaves: {numberOfLeaves}, Count per Leaf: {minimumExampleCountPerLeaf}";
-            _logger?.LogInformation(resultText);
-            return new OkObjectResult(resultText);
 
+        /// <summary>
+        /// Queues a model for training.
+        /// </summary>
+        /// <param name="req"></param>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [Function("PostModel")]
+        public async Task<IActionResult> PostEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["post"], Route = "Model")] HttpRequest req)
+        {
+            _logger?.LogInformation("Queuing Training of Model.");
+            try
+            {
+                req.Query.TryGetValue("name", out var _name);
+                var name = _name;
+
+                req.Query.TryGetValue("description", out var _description);
+                var description = _description;
+
+                var trainingParameters = await collateRequestTrainingParameters(req);
+
+                var receipt = await sendModelingMessage(new TrainModelMessage(trainingParameters, name, description));
+                var resultText = $"Training of Model {name} Queued:\n{trainingParameters}";
+                _logger?.LogInformation(resultText);
+                return new OkObjectResult(resultText);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, $"Error in sending the model training message. {ex.Message}");
+                return new BadRequestObjectResult(ex.Message);
+            }
         }
 
         /// <summary>
@@ -126,6 +176,18 @@ namespace Visavi.Quantis.Api
         public async Task<IActionResult> GetEquityModel([HttpTrigger(AuthorizationLevel.Anonymous, ["get"], Route = "Model/{id:int?}")] HttpRequest req, int? id)
         {
             return await (id == null ? httpGetModelSummaryList() : httpGetModel(ModelType.Composite, id.Value));
+        }
+
+        /// <summary>
+        /// Gets a summary of all models or detailed information on a specific model.
+        /// </summary>
+        /// <returns></returns>
+        [Function("GetFeatureList")]
+        public IActionResult GetFeatureList([HttpTrigger(AuthorizationLevel.Anonymous, ["get"], Route = "FeatureList")] HttpRequest req)
+        {
+            var featureList = _dataServices.PredictionModels.GetFeatureList();
+            var resultText = JsonSerializer.Serialize(featureList);
+            return new OkObjectResult(resultText);
         }
 
         public class UpdateModelRequest

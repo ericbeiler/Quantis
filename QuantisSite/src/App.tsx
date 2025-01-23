@@ -2,8 +2,9 @@
 
 import PredictionGrid from "./components/PredictionGrid";
 import ModelSelector from "./components/ModelSelector";
-import ConfigureModelModal, { TrainingGranularity } from "./components/ConfigureModelModal";
+import ConfigureModelModal from "./components/ConfigureModelModal";
 import ModelDetails from "./components/ModelDetails";
+import ModelConfiguration from "./components/ModelConfiguration";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
@@ -12,14 +13,9 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isModelDetailsOpen, setIsModelDetailsOpen] = useState(true); // Toggle model details sidebar
 
-  const handleBuildModel = async (parameters: {
-    trainingGranularity: TrainingGranularity;
-    numberOfTrees: number;
-    numberOfLeaves: number;
-    minimumExampleCountPerLeaf: number;
-  }) => {
+  const handleBuildModel = async (parameters: ModelConfiguration) => {
     try {
-      const response = await fetch(`${serverUrl}api/Model?equityIndex=SPY&granularity=${parameters.trainingGranularity}&numberOfTrees=${parameters.numberOfTrees}&numberOfLeaves=${parameters.numberOfLeaves}&minimumExampleCountPerLeaf=${parameters.minimumExampleCountPerLeaf}`, {
+      const response = await fetch(`${serverUrl}api/Model`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(parameters),

@@ -39,6 +39,7 @@ namespace Visavi.Quantis.Modeling
         public int? NumberOfTrees { get; set; }
         public int? NumberOfLeaves { get; set; }
         public int? MinimumExampleCountPerLeaf { get; set; }
+        public string[]? Features { get; set; }
 
         public override string ToString()
         {
