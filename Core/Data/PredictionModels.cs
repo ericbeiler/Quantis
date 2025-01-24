@@ -1,9 +1,13 @@
 ﻿using Azure.Storage.Blobs;
+using Azure.Storage.Queues.Models;
 using Dapper;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using System.Linq;
 using System.Text.Json;
+using Visavi.Quantis.Data;
+using Visavi.Quantis.Events;
 using Visavi.Quantis.Modeling;
 
 namespace Visavi.Quantis.Data
@@ -56,8 +60,10 @@ namespace Visavi.Quantis.Data
                 CONSTRAINT [PK_CagrRegressionModels] PRIMARY KEY CLUSTERED ([Id] ASC)
             );";
 
-        internal PredictionModels(Connections connections, ILogger logger) : base(connections, logger)
+        private readonly IEventService _eventService;
+        internal PredictionModels(Connections connections, IEventService eventService, ILogger logger) : base(connections, logger)
         {
+            _eventService = eventService;
         }
 
         public async Task<int> CreateCompositeModel(TrainModelMessage trainModelMessage)
@@ -70,7 +76,9 @@ namespace Visavi.Quantis.Data
 
             using var dbConnection = _connections.DbConnection;
             var jsonTrainingParameters = JsonSerializer.Serialize(trainModelMessage.TrainingParameters);
-            return await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Name], [Description], [Parameters]) Values (@name, @description, @jsonTrainingParameters); SELECT SCOPE_IDENTITY()", new {name = trainModelMessage.ModelName, description = trainModelMessage.ModelDescription, jsonTrainingParameters });
+            int modelId = await dbConnection.ExecuteScalarAsync<int>("INSERT INTO CompositeModels ([Name], [Description], [Parameters]) Values (@name, @description, @jsonTrainingParameters); SELECT SCOPE_IDENTITY()", new {name = trainModelMessage.ModelName, description = trainModelMessage.ModelDescription, jsonTrainingParameters });
+            sendModelUpdateEvent(modelId);
+            return modelId;
         }
 
         public async Task<CompositeModelDetails> GetCompositeModelDetails(int compositeModelId)
@@ -147,6 +155,7 @@ namespace Visavi.Quantis.Data
                 await ExecuteQuery(createCompositeModelsTableQuery);
             }
 
+            List<ModelSummary> modelSummaries;
             using var dbConnection = _connections.DbConnection;
             switch (modelType)
             {
@@ -157,15 +166,18 @@ namespace Visavi.Quantis.Data
                         query += $" WHERE State != {(int)ModelState.Deleted}";
                     }
                     var compositeModels = await dbConnection.QueryAsync<CompositeModelRecord>(query);
-                    return compositeModels.Select(model => model.ToModelSummary());
+                    modelSummaries = new List<ModelSummary>(compositeModels.Select(model => model.ToModelSummary()));
+                    break;
 
                 case ModelType.CagrRegression:
                     var regressionModels = await dbConnection.QueryAsync<CagrRegressionModelRecord>("SELECT * FROM CagrRegressionModels");
-                    return regressionModels.Select(model => model.ToModelSummary());
+                    modelSummaries = new List<ModelSummary>(regressionModels.Select(model => model.ToModelSummary()));
+                    break;
 
                 default:
                     throw new ArgumentException($"ModelType {modelType} not supported.");
             }
+            return modelSummaries;
         }
 
         public async Task<IPredictor> GetPricePredictor(int id)
@@ -253,25 +265,25 @@ namespace Visavi.Quantis.Data
                                     });
 
             _logger?.LogInformation($"Saved Model {modelId}");
-            fireAndForgetModelUpdated(modelId);
+            sendModelUpdateEvent(modelId);
         }
 
-        private void fireAndForgetModelUpdated(int modelId)
-        {
-            _ = notifyModelUpdatedAsync(modelId);
-        }
-
-        private async Task notifyModelUpdatedAsync(int modelId)
+        private void sendModelUpdateEvent(int modelId)
         {
             try
             {
-                string modelDetailsJson = modelId > 0 ? JsonSerializer.Serialize(await GetCompositeModelDetails(modelId)) : "";
-                var eventHub = await _connections.EventHub();
-                await eventHub.Clients.All.SendAsync("modelUpdated", JsonSerializer.Serialize(modelDetailsJson));
+                if (modelId > 0)
+                {
+                    var modelDetails = GetCompositeModelDetails(modelId).Result;
+                    if (modelDetails != null)
+                    {
+                        _eventService.FireAndForget(EventNames.modelUpdated, JsonSerializer.Serialize(modelDetails));
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error notifying model updated for model {modelId}");
+                _logger.LogError(ex, $"Error firing and forgetting model updated event for model {modelId}");
             }
         }
 
@@ -282,7 +294,7 @@ namespace Visavi.Quantis.Data
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET State = @state, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { State = state, @timestamp = DateTime.UtcNow, Id = modelId });
 
-                fireAndForgetModelUpdated(modelId);
+                sendModelUpdateEvent(modelId);
             }
             catch (Exception ex)
             {
@@ -298,7 +310,7 @@ namespace Visavi.Quantis.Data
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET Name = @name, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { Name = name, @timestamp = DateTime.UtcNow, Id = modelId });
 
-                fireAndForgetModelUpdated(modelId);
+                sendModelUpdateEvent(modelId);
             }
             catch (Exception ex)
             {
@@ -314,7 +326,7 @@ namespace Visavi.Quantis.Data
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET Description = @description, ModifiedTimestamp = @timestamp WHERE Id = @Id", new { Description = description, @timestamp = DateTime.UtcNow, Id = modelId });
 
-                fireAndForgetModelUpdated(modelId);
+                sendModelUpdateEvent(modelId);
             }
             catch (Exception ex)
             {
@@ -330,7 +342,7 @@ namespace Visavi.Quantis.Data
                 using var connection = _connections.DbConnection;
                 await connection.ExecuteAsync("UPDATE CompositeModels SET QualityScore = @QualityScore WHERE Id = @Id", new { QualityScore = qualityScore, Id = modelId });
 
-                fireAndForgetModelUpdated(modelId);
+                sendModelUpdateEvent(modelId);
             }
             catch (Exception ex)
             {

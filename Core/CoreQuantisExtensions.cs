@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Visavi.Quantis.Data;
 using Visavi.Quantis.Modeling;
 
 namespace Visavi.Quantis
@@ -8,7 +7,7 @@ namespace Visavi.Quantis
     {
         public static void AddQuantisCoreServices(this IServiceCollection services)
         {
-            services.AddTransient<IDataServices, DataServices>();
+            services.AddTransient<IOrchestrator, Orchestrator>();
             services.AddTransient<IPredictionService, PredictionService>();
         }
 

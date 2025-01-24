@@ -5,15 +5,7 @@ namespace Visavi.Quantis.Data
 {
     public class CompositeModelDetails
     {
-        public CompositeModelDetails(int id, string name, string description, ModelType type)
-        {
-            Id = id;
-            Name = name;
-            Description = description;
-            Type = type;
-        }
-
-        public CompositeModelDetails(TrainingParameters trainingParameters, ModelSummary? modelSummary, IEnumerable<CagrRegressionModelDetails> regressionModels)
+        public CompositeModelDetails(TrainingParameters trainingParameters, ModelSummary? modelSummary = null, IEnumerable<CagrRegressionModelDetails>? regressionModels = null)
         {
             TrainingParameters = trainingParameters;
 
@@ -23,7 +15,7 @@ namespace Visavi.Quantis.Data
             Type = modelSummary?.Type;
             QualityScore = modelSummary?.QualityScore;
 
-            RegressionModelDetails = regressionModels.ToArray();
+            RegressionModelDetails = regressionModels?.ToArray() ?? [] ;
         }
 
         public TrainingParameters TrainingParameters { get; set; }

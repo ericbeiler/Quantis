@@ -8,9 +8,9 @@ namespace Visavi.Quantis.Modeling
     {
         private const int monthsPerYear = 12;
         private readonly ILogger<PredictionService> _logger;
-        private readonly IDataServices _dataServices;
+        private readonly IOrchestrator _dataServices;
 
-        public PredictionService(ILogger<PredictionService> logger, IDataServices dataServices)
+        public PredictionService(ILogger<PredictionService> logger, IOrchestrator dataServices)
         {
             _logger = logger;
             _dataServices = dataServices;

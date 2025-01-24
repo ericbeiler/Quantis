@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-using Microsoft.Azure.SignalR.Management;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Visavi.Quantis.Data;
+using Visavi.Quantis.Events;
 using Visavi.Quantis.Modeling;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
@@ -20,13 +20,12 @@ namespace Visavi.Quantis.Api
     {
         private readonly ILogger<HttpService> _logger;
         private readonly IPredictionService _predictionService;
-        private readonly IDataServices _dataServices;
+        private readonly IOrchestrator _dataServices;
 
         // HTTP Requests
         private static readonly string reloadDaysParmName = "reloadDays";
-        private const string quantisModelingQueue = "quantis-modeling";
 
-        public HttpService(ILogger<HttpService> logger, IPredictionService predictionService, IDataServices dataServices)
+        public HttpService(ILogger<HttpService> logger, IPredictionService predictionService, IOrchestrator dataServices)
         {
             _logger = logger;
             _predictionService = predictionService;
@@ -242,18 +241,10 @@ namespace Visavi.Quantis.Api
             return new OkResult();
         }
 
-        public class QueantisEventConnectionInfo
-        {
-            public string Url { get; set; }
-
-            public string AccessToken { get; set; }
-        }
-
-
         [Function("negotiate")]
         public async Task<HttpResponseData> Negotiate(
             [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req,
-            [SignalRConnectionInfoInput(HubName = "events")] QueantisEventConnectionInfo connectionInfo)
+            [SignalRConnectionInfoInput(HubName = "events")] SignalRConnectionInfo connectionInfo)
         {
             _logger.LogInformation($"SignalR Connection URL = '{connectionInfo.Url}'");
 
@@ -303,6 +294,7 @@ namespace Visavi.Quantis.Api
             _logger?.LogInformation("Getting a list of all trained models.");
 
             var models = await _dataServices.PredictionModels.GetModelSummaryList();
+
             var resultText = JsonSerializer.Serialize(models);
 
             _logger?.LogInformation(resultText);
@@ -416,13 +408,14 @@ namespace Visavi.Quantis.Api
             message.TrainingParameters.CompositeModelId = await _dataServices.PredictionModels.CreateCompositeModel(message);
 
             var queueServiceClient = _dataServices.QueueConnection;
-            var queueClient = queueServiceClient.GetQueueClient(quantisModelingQueue);
+            var queueClient = queueServiceClient.GetQueueClient(_dataServices.ModelingQueue);
             await queueClient.CreateIfNotExistsAsync();
 
             JsonSerializerOptions options = new JsonSerializerOptions() { RespectNullableAnnotations = true };
             string jsonMessage = JsonSerializer.Serialize(message, options);
             _logger?.LogInformation($"Sending Modeling Message: {jsonMessage}");
-            var sendReceipt =  await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
+            var sendReceipt = await queueClient.SendMessageAsync(Convert.ToBase64String(Encoding.UTF8.GetBytes(jsonMessage)));
+
             return message?.TrainingParameters.CompositeModelId ?? 0;
         }
     }

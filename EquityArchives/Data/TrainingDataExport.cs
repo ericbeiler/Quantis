@@ -8,7 +8,7 @@ namespace Visavi.Quantis.Data
 {
     internal class TrainingDataExport
     {
-        private readonly IDataServices _dataServices;
+        private readonly IOrchestrator _dataServices;
         private const string modelTrainingContainerName = "model-training";
         private static readonly string equitiesPrefix = "equities" + DataService.ContainerFolderSeperator;
 
@@ -20,7 +20,7 @@ namespace Visavi.Quantis.Data
                 WHERE SimFinId = @simFinId AND [Y1Cagr] IS NOT NULL AND [Date] < @endDate
                 ORDER BY [Date] DESC";
 
-        public TrainingDataExport(IDataServices dataServices)
+        public TrainingDataExport(IOrchestrator dataServices)
         {
             _dataServices = dataServices;
         }

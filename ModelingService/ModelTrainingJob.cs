@@ -1,6 +1,5 @@
 ﻿using Microsoft.ML;
 using System.Text.Json;
-using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling
 {
@@ -13,10 +12,10 @@ namespace Visavi.Quantis.Modeling
         private readonly DateTime _timestamp = DateTime.Now;
         private readonly CancellationToken _stoppingToken;
         private readonly TrainingParameters _trainingParameters;
-        private IDataServices _dataServices;
+        private IOrchestrator _dataServices;
         private IPredictionService _predictionService;
 
-        internal ModelTrainingJob(TrainingParameters trainingParameters, IDataServices dataServices, IPredictionService predictionService, ILogger logger)
+        internal ModelTrainingJob(TrainingParameters trainingParameters, IOrchestrator dataServices, IPredictionService predictionService, ILogger logger)
         {
             _logger = logger;
             _stoppingToken = new CancellationToken();

@@ -13,7 +13,7 @@ namespace Visavi.Quantis.Data
     {
         internal const string ContainerFolderSeperator = "/";
         private readonly ILogger<DataService> _logger;
-        private readonly IDataServices _dataServices;
+        private readonly IOrchestrator _dataServices;
 
         // Queue Requests
         internal const string EquityQueueName = "quantis-equities";
@@ -30,7 +30,7 @@ namespace Visavi.Quantis.Data
         private static readonly List<string> _workingFileList = new List<string>();  // TODO: Scalable solution needed
         internal const string WorkingSetPrefix = "workingset";
 
-        public DataService(ILogger<DataService> logger, IDataServices dataServices)
+        public DataService(ILogger<DataService> logger, IOrchestrator dataServices)
         {
             _logger = logger;
             _dataServices = dataServices;

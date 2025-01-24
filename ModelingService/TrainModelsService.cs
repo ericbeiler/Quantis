@@ -4,20 +4,19 @@ using Azure.Storage.Queues.Models;
 using System.Linq.Expressions;
 using System.Text.Json;
 using System.Threading;
-using Visavi.Quantis.Data;
 
 namespace Visavi.Quantis.Modeling
 {
     public class TrainModelsService : BackgroundService
     {
         private readonly ILogger<TrainModelsService> _logger;
-        private readonly IDataServices _dataServices;
+        private readonly IOrchestrator _dataServices;
         private readonly IPredictionService _predictionService;
         private readonly QueueClient _queueClient = new QueueClient(StorageConnectionString, "quantis-modeling");
 
         internal const string StorageConnectionString = "BlobEndpoint=https://quantis.blob.core.windows.net/;QueueEndpoint=https://quantis.queue.core.windows.net/;FileEndpoint=https://quantis.file.core.windows.net/;TableEndpoint=https://quantis.table.core.windows.net/;SharedAccessSignature=sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2025-11-17T02:13:18Z&st=2024-11-16T18:13:18Z&spr=https&sig=iKRDTg8msgsX8pPrgbJo%2Fm2gZam8JxDrF%2B11PU2KsZU%3D";
 
-        public TrainModelsService(IDataServices dataServices, IPredictionService predictionService, ILogger<TrainModelsService> logger)
+        public TrainModelsService(IOrchestrator dataServices, IPredictionService predictionService, ILogger<TrainModelsService> logger)
         {
             _dataServices = dataServices;
             _predictionService = predictionService;
@@ -44,10 +43,10 @@ namespace Visavi.Quantis.Modeling
                     poppedMessage = _queueClient.ReceiveMessage(TimeSpan.FromMinutes(180), cancellationToken).Value;
                     if (poppedMessage != null)
                     {
-                        var queueMessage = decodeMessage(poppedMessage);
+                        var trainModelMessage = poppedMessage.ToTrainModelMessage();
 
                         // Check the message is a valid queue message
-                        if (queueMessage == null)
+                        if (trainModelMessage == null)
                         {
                             _logger.LogWarning($"{poppedMessage?.MessageId} is not in a valid format. Deleting...");
                             await deleteQueueMessage(poppedMessage, cancellationToken);
@@ -56,7 +55,7 @@ namespace Visavi.Quantis.Modeling
                         _logger.LogInformation($"Processing message {poppedMessage?.MessageId}.");
 
                         // Check the message is a valid training message
-                        if (queueMessage?.TrainingParameters == null)
+                        if (trainModelMessage?.TrainingParameters == null)
                         {
                             _logger.LogError($"No training parameters found in message {poppedMessage?.MessageId}. Cancelling Message.");
                             await deleteQueueMessage(poppedMessage, cancellationToken);
@@ -64,8 +63,8 @@ namespace Visavi.Quantis.Modeling
                         }
 
                         // Run Training
-                        _logger.LogError($"Training commenced for message {poppedMessage?.MessageId}, {queueMessage.TrainingParameters}");
-                        var trainingJob = new ModelTrainingJob(queueMessage.TrainingParameters, _dataServices, _predictionService, _logger);
+                        _logger.LogError($"Training commenced for message {poppedMessage?.MessageId}, {trainModelMessage.TrainingParameters}");
+                        var trainingJob = new ModelTrainingJob(trainModelMessage.TrainingParameters, _dataServices, _predictionService, _logger);
                         await trainingJob.ExecuteAsync();
 
                         _logger.LogInformation($"Deleting message {poppedMessage?.MessageId}.");
@@ -84,25 +83,6 @@ namespace Visavi.Quantis.Modeling
                 }
             }
             _logger.LogInformation("Model Training Service Stopped at: {time}", DateTime.Now);
-        }
-
-        private TrainModelMessage? decodeMessage(QueueMessage message)
-        {
-            if (message == null)
-            {
-                return null;
-            }
-
-            // Deserialize the message body to get the ReloadDays
-            string messageBody = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(message.Body.ToString()));
-            if (string.IsNullOrWhiteSpace(messageBody))
-            {
-                return null;
-            }
-
-            JsonSerializerOptions options = new JsonSerializerOptions() { RespectNullableAnnotations = true };
-            _logger.LogInformation($"Received message: {messageBody}");
-            return JsonSerializer.Deserialize<TrainModelMessage>(messageBody, options);
         }
 
         private async Task<Response?> deleteQueueMessage(QueueMessage? message, CancellationToken cancellationToken)

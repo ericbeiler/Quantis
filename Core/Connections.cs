@@ -5,12 +5,13 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace Visavi.Quantis.Data
+namespace Visavi.Quantis
 {
     internal class Connections
     {
-        private const string eventsHubName = "events";
+        public const string QuantisModelingQueue = "quantis-modeling";
 
+        private const string eventsHubName = "events";
         private readonly ILogger _logger;
         private readonly string? _storageConnectionString;
         private readonly string? _dbConnectionString;

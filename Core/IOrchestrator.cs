@@ -1,10 +1,12 @@
 ﻿using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
 using Microsoft.Data.SqlClient;
+using Visavi.Quantis.Data;
+using Visavi.Quantis.Events;
 
-namespace Visavi.Quantis.Data
+namespace Visavi.Quantis
 {
-    public interface IDataServices
+    public interface IOrchestrator
     {
         // Connection Strings
         string? DbConnectionString { get; }
@@ -19,5 +21,11 @@ namespace Visavi.Quantis.Data
         ICacheService Cache { get; }
         IEquityArchives EquityArchives { get; }
         IPredictionModels PredictionModels { get; }
+
+        // Events
+        IEventService EventService { get; }
+
+        // Queues
+        string ModelingQueue { get; }
     }
 }

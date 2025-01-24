@@ -45,7 +45,7 @@ namespace Visavi.Quantis.Modeling
         private MLContext _mlContext = new MLContext();
         private readonly CancellationToken _stoppingToken;
         private IDataView _modelingDataset;
-        private IDataServices _dataServices;
+        private IOrchestrator _dataServices;
         private uint _maxTrainingTimeInSeconds;
         private int? _datasetSizeLimit;
         private readonly int _numberOfTrees;
@@ -54,7 +54,7 @@ namespace Visavi.Quantis.Modeling
         private readonly TrainingGranularity _grainularity;
         private IReadOnlyList<TrainCatalogBase.CrossValidationResult<RegressionMetrics>> _crossValidationResults;
 
-        public RegressionModel(IDataServices dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null,
+        public RegressionModel(IOrchestrator dataServices, ILogger logger, string indexTicker, int tagetDurationInMonths, TrainingAlgorithm algorithm, int? compositeId = null,
                                 uint? maxTrainingTimeInSeconds = null, int? datasetSizeLimit = null, int? numberOfTrees = null, int? numberOfLeaves = null,
                                 int? minimumExampleCountPerLeaf = null, TrainingGranularity? grainularity = null, string[]? featureList = null)
         {

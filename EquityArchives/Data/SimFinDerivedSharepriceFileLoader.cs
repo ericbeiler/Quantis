@@ -6,12 +6,12 @@ namespace Visavi.Quantis.Data
 {
     internal class SimFinDerivedSharepriceFileLoader
     {
-        private readonly IDataServices _dataServices;
+        private readonly IOrchestrator _dataServices;
         private readonly ILogger _logger;
         private const int batchSize = 5000;
         internal const string FileDelimiter = ";";
 
-        public SimFinDerivedSharepriceFileLoader(IDataServices dataServices, ILogger logger)
+        public SimFinDerivedSharepriceFileLoader(IOrchestrator dataServices, ILogger logger)
         {
             _dataServices = dataServices;
             _logger = logger;
