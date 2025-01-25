@@ -5,7 +5,7 @@ interface ModelConfiguration {
   NumberOfTrees: number;
   NumberOfLeaves: number;
   MinimumExampleCountPerLeaf: number;
-  Features: string[] | null;
+  Features: string[];
 }
 
 export default ModelConfiguration

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { AgGridReact } from 'ag-grid-react'; // React Data Grid Component
 import { ColDef } from 'ag-grid-community'; // Column Definition Interface
 import "ag-grid-community/styles/ag-grid.css"; // Mandatory CSS required by the Data Grid
@@ -11,7 +11,11 @@ import PredictionTrend from "./PredictionTrend";
 
 const serverUrl = import.meta.env.VITE_SERVER;
 
-const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
+type PredictionGridProps = {
+  selectedModel: number;
+};
+
+const PredictionGrid: React.FC<PredictionGridProps> = ({ selectedModel }) => {
 
   // Formatter function: Formats a numeric value to 2 decimal places or returns a default string.
   const formatToPrice = (value?: number | null, defaultValue: string = 'N/A') =>
@@ -24,19 +28,11 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
   // Column Definitions: Defines the columns to be displayed.
   const predictionColumns: ColDef<PredictionTrend>[] = [
     { field: 'Ticker', headerName: 'Ticker', width: 100 },
+    // TODO: Maybe make these configurable in the future
+    /*
     {
       headerName: 'Starting Date', width: 120,
       valueGetter: params => params.data?.PricePoints?.[0]?.StartingDate
-    },
-    {
-      headerName: 'Starting Price', width: 120,
-      valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.StartingPrice),
-      valueGetter: params => params.data?.PricePoints?.[0]?.StartingPrice
-    },
-    {
-      headerName: 'Year 1 Price', width: 120,
-      valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.PredictedEndingPrice),
-      valueGetter: params => params.data?.PricePoints?.[0]?.PredictedEndingPrice
     },
     {
       headerName: 'Year 2 Price', width: 120,
@@ -48,11 +44,7 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[2]?.PredictedEndingPrice),
       valueGetter: params => params.data?.PricePoints?.[2]?.PredictedEndingPrice
     },
-    {
-      headerName: 'Year 5 Price', width: 120,
-      valueFormatter: params => formatToPrice(params.data?.PricePoints?.[3]?.PredictedEndingPrice),
-      valueGetter: params => params.data?.PricePoints?.[3]?.PredictedEndingPrice
-    },
+    */
     {
       headerName: 'Year 1 CAGR', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.PredictedCagr),
@@ -72,6 +64,20 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
       headerName: 'Year 5 CAGR', width: 120,
       valueFormatter: params => formatToPrice(params.data?.PricePoints?.[3]?.PredictedCagr),
       valueGetter: params => params.data?.PricePoints?.[3]?.PredictedCagr
+    },
+    {
+      headerName: 'Starting Date', width: 120,
+      valueGetter: params => params.data?.PricePoints?.[0]?.StartingDate
+    },
+    {
+      headerName: 'Starting Price', width: 120,
+      valueFormatter: params => formatToPrice(params.data?.PricePoints?.[0]?.StartingPrice),
+      valueGetter: params => params.data?.PricePoints?.[0]?.StartingPrice
+    },
+    {
+      headerName: 'Year 5 Price', width: 120,
+      valueFormatter: params => formatToPrice(params.data?.PricePoints?.[3]?.PredictedEndingPrice),
+      valueGetter: params => params.data?.PricePoints?.[3]?.PredictedEndingPrice
     }
   ];
   const [loading, setLoading] = useState(true);
@@ -136,9 +142,9 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
   };
 
   return (
-    <div>
+    <div className="flex h-full w-full flex-col">
       {/* Data Grid */}
-      <div className="ag-theme-alpine" style={{ height: 500 }}>
+      <div className="ag-theme-alpine flex-1 overflow-hidden">
         <AgGridReact
           rowData={predictions}
           columnDefs={predictionColumns}
@@ -152,7 +158,7 @@ const PredictionGrid: React.FC<ModelSelectorProps> = ({ selectedModel }) => {
       </div>
 
       {/* Highcharts Trend Chart */}
-      <div style={{ marginTop: "20px" }}>
+      <div className="flex-1 mt-4 overflow-hidden">
         {!loading && (
           <HighchartsReact highcharts={Highcharts} options={chartOptions} />
         )}

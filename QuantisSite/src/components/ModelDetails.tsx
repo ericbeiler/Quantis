@@ -57,7 +57,7 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
         <li>
           <button
             onClick={() => setShowTrainingParams(!showTrainingParams)}
-            className="flex items-center text-blue-500 underline focus:outline-none"
+            className="flex items-center text-black underline focus:outline-none transform hover:scale-110 transition-transform duration-200"
           >
             {carrotIcon(showTrainingParams)} Training Parameters
           </button>
@@ -93,9 +93,9 @@ const ModelDetails: React.FC<ModelDetailsProps> = ({ selectedModel }) => {
               <li key={detail.Id} className="space-y-1">
                 <button
                   onClick={() => toggleRegressionModel(detail.Id)}
-                  className="flex items-center text-blue-500 underline focus:outline-none"
+                  className="flex items-center text-black underline focus:outline-none transform hover:scale-110 transition-transform duration-200"
                 >
-                  {carrotIcon(expandedRegressionModels[detail.Id])} <strong>Target Duration:</strong> {detail.TargetDuration} Months
+                  {carrotIcon(expandedRegressionModels[detail.Id])} Target Duration: {detail.TargetDuration} Months
                 </button>
                 {expandedRegressionModels[detail.Id] && (
                   <ul className="list-disc space-y-1 pl-5">

@@ -23,6 +23,10 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+      '@typescript-eslint/no-explicit-any': [
+        'warn', // Change to 'error' if stricter enforcement is desired
+        { ignoreRestArgs: false }, // Optional: disallow `...args: any[]`
+      ],
     },
   },
 )

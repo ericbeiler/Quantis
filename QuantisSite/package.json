@@ -11,12 +11,16 @@
   },
   "dependencies": {
     "@ag-grid-community/client-side-row-model": "^32.3.3",
+    "@headlessui/react": "^2.2.0",
+    "@microsoft/signalr": "^8.0.7",
     "ag-grid-community": "^32.3.3",
     "ag-grid-react": "^32.3.3",
     "highcharts-react-official": "^3.2.1",
     "react": "^18.3.1",
     "react-data-grid": "^7.0.0-beta.47",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-grid-layout": "^1.5.0",
+    "react-resizable": "^3.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

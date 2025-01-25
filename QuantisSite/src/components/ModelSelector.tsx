@@ -1,5 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import ModelSummary from "./ModelSummary";
+import ConfigureModelModal from "./ConfigureModelModal";
+import ModelConfiguration from "./ModelConfiguration";
 import ModelSelectorProps from "./ModelSelectorProps";
 import ModelState from "./ModelState";
 import * as signalR from "@microsoft/signalr";
@@ -11,6 +13,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
   const [editingModel, setEditingModel] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false); // State for modal visibility
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -40,12 +43,12 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
         console.log("SignalR Connected");
 
         // Subscribe to the "modelUpdated" event
-        connection.on("modelUpdated", (updatedModel) => {
+        connection.on("modelUpdated", (updatedModel: string) => {
           console.log("Received model update:", updatedModel);
 
           fetchModels();
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error starting SignalR connection:", error);
       }
     };
@@ -57,6 +60,22 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
       connection.stop().catch((error) => console.error("Error stopping SignalR connection:", error));
     };
   }, []);
+
+  const handleBuildModel = async (parameters: ModelConfiguration) => {
+    try {
+      const response = await fetch(`${serverUrl}api/Model`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parameters),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to build the model");
+      }
+      alert("Model queued for training.");
+    } catch (error) {
+      alert("Error: " + error);
+    }
+  };
 
   const handleDelete = async (id: number) => {
     try {
@@ -90,8 +109,22 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
   };
 
   return (
-    <div className="resizable mx-auto max-w-lg space-y-4 rounded-xl bg-white p-6 shadow-md">
-      <h2 className="text-xl font-bold text-gray-900">Models</h2>
+    <div className="resizable mx-auto h-full max-w-lg space-y-4 overflow-y-auto rounded-xl bg-white p-6 shadow-md">
+
+      {/* Models Title with Add Button */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-900">Models</h2>
+        <button
+          className="rounded-full bg-blue-300 p-2 text-white shadow-md hover:bg-blue-700"
+          onClick={() => setIsModalOpen(true)}
+          title="Add New Model"
+        >
+          ➕
+        </button>
+      </div>
+
+
+      {/* List of Models */}
       <ul className="space-y-2">
         {modelList.map((model) => (
           <li
@@ -169,6 +202,13 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ selectedModel, setSelecte
           </li>
         ))}
       </ul>
+
+      {/* Configure Model Modal */}
+      <ConfigureModelModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleBuildModel}
+      />
     </div>
   );
 };
